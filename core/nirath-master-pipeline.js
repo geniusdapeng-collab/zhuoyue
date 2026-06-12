@@ -5756,6 +5756,17 @@ ${isNirath
       }
 
       const passed = errors.length === 0;
+
+      // 检查8: v6.37-production+ - 字段完整性检查
+      const v6Fields = ['scene', 'mood', 'camera', 'lighting', 'characterRef', 'character', 'action', 'dialogue', 'timeline', 'backgroundSound'];
+      const missingV6Fields = v6Fields.filter(f => !result[f]);
+      if (missingV6Fields.length > 0) {
+        warnings.push(`v6.37字段缺失: ${missingV6Fields.join(', ')}`);
+        this.log('STAGE-11.5', `  ⚠️ ${result.shotId} v6.37字段缺失: ${missingV6Fields.join(', ')}`);
+      } else {
+        this.log('STAGE-11.5', `  ✅ ${result.shotId} v6.37字段完整`);
+      }
+
       if (!passed) allPassed = false;
 
       results.push({
