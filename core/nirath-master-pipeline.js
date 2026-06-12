@@ -5301,7 +5301,7 @@ ${isNirath
   }
 
   /**
-   * v6.37-production+: 构建 timeline 结构化对象
+   * v6.37-production+: 构建 timeline 结构化对象（匹配超现实系统标准）
    */
   _buildTimelineObject(shot, index, totalShots) {
     const start = shot.startTime || 0;
@@ -5310,7 +5310,7 @@ ${isNirath
     
     const typeMap = {
       'opening': 'opening',
-      'establishing': 'establishing',
+      'establishing': 'establishing', 
       'transition': 'transition',
       'climax': 'climax',
       'closing': 'closing'
@@ -5333,19 +5333,37 @@ ${isNirath
   }
 
   /**
-   * v6.37-production+: 构建 backgroundSound 结构化对象
+   * v6.37-production+: 构建 backgroundSound 结构化对象（匹配超现实系统标准）
    */
   _buildBackgroundSoundObject(shot, prompt) {
+    const duration = shot.duration || 10;
+    
+    // 从 prompt 提取环境音效
     const ambientMatch = prompt.match(/【环境音效】([^【]+)/);
     const ambient = ambientMatch ? ambientMatch[1].trim().substring(0, 80) : 'natural environment, wind and distant sounds';
     
+    // 从 prompt 提取空间定位
+    const spatialMatch = prompt.match(/【空间音频】([^【]+)/);
+    const spatial = spatialMatch ? spatialMatch[1].trim().substring(0, 60) : 'ambient stereo field';
+    
+    // 计算三段式强度（crescendo / peak / decay）
+    const third = Math.floor(duration / 3);
+    const crescendoEnd = Math.min(third, 5);
+    const peakStart = crescendoEnd;
+    const peakEnd = Math.min(peakStart + third, duration - 2);
+    const decayStart = peakEnd;
+    
     const obj = {
       ambient,
-      spatial: 'ambient stereo field',
-      intensity: { steady: '0-100%', variations: 'subtle' }
+      spatial,
+      intensity: {
+        crescendo: `0-${crescendoEnd}s`,
+        peak: `${peakStart}-${peakEnd}s`,
+        decay: `${decayStart}-${duration}s`
+      }
     };
     
-    obj.string = `AMBIENT: ${ambient} | SPATIAL: ambient stereo field | INTENSITY: steady 0-100%, variations subtle`;
+    obj.string = `AMBIENT: ${ambient} | SPATIAL: ${spatial} | INTENSITY: crescendo ${obj.intensity.crescendo}, peak ${obj.intensity.peak}, decay ${obj.intensity.decay}`;
     
     return obj;
   }
@@ -5397,7 +5415,7 @@ ${isNirath
   }
 
   /**
-   * v6.37-production+: 构建角色极简锚点
+   * v6.37-production+: 构建角色极简锚点（匹配超现实系统标准：种族+3-5关键词，禁止详细描述）
    */
   _buildCharacterAnchor(shot, characters) {
     if (!shot.characters || shot.characters.length === 0) return 'NONE';
@@ -5409,34 +5427,88 @@ ${isNirath
       const name = char.profile?.baseIdentity?.name || char.profile?.name || cid;
       const race = char.profile?.baseIdentity?.species || char.profile?.species || 'unknown';
       
-      // 提取3-5个核心特征
+      // 提取3-5个核心视觉特征（禁止颜色词超过2个，禁止身体部位详细描述）
       const features = [];
-      if (char.profile?.visuals?.hairColor) features.push(char.profile.visuals.hairColor);
-      if (char.profile?.visuals?.eyeColor) features.push(char.profile.visuals.eyeColor);
-      if (char.profile?.visuals?.build) features.push(char.profile.visuals.build);
+      let colorCount = 0;
+      
+      // 从 distinctiveFeatures 提取（优先）
       if (char.profile?.visuals?.distinctiveFeatures) {
-        features.push(...char.profile.visuals.distinctiveFeatures.slice(0, 2));
+        for (const feat of char.profile.visuals.distinctiveFeatures) {
+          if (features.length >= 5) break;
+          // 检测颜色词
+          const colorWords = ['white', 'black', 'red', 'blue', 'green', 'golden', 'silver', 'purple', 'orange', 'yellow', 'gray', 'brown'];
+          const isColor = colorWords.some(c => feat.toLowerCase().includes(c));
+          if (isColor && colorCount >= 2) continue; // 最多2个颜色词
+          if (isColor) colorCount++;
+          features.push(feat);
+        }
+      }
+      
+      // 从 build 补充
+      if (features.length < 3 && char.profile?.visuals?.build) {
+        features.push(char.profile.visuals.build);
+      }
+      
+      // 从 hairColor/eyeColor 补充（仅1个）
+      if (features.length < 3 && char.profile?.visuals?.hairColor && colorCount < 2) {
+        features.push(`${char.profile.visuals.hairColor} hair`);
+        colorCount++;
+      }
+      
+      // 确保至少3个特征
+      while (features.length < 3) {
+        features.push('core features');
       }
       
       const keywords = features.slice(0, 5).join(', ');
-      return `${name}: ${race}, ${keywords || 'core features'}`;
+      return `${name}: ${race}, ${keywords}`;
     });
     
     return anchors.join(' | ');
   }
 
   /**
-   * v6.37-production+: 格式化台词
+   * v6.37-production+: 格式化台词（匹配超现实系统标准：SPEAKER|TYPE|EMOTION|TEXT|LIP_SYNC:YES）
    */
-  _formatDialogue(dialogue, narration, characters) {
+  _formatDialogue(dialogue, narration, characters, shot) {
     if (!dialogue && !narration) return 'NONE';
     
     const text = dialogue || narration || '';
-    const speaker = characters?.[0] || '角色';
-    const type = narration && !dialogue ? '独白' : '对白';
-    const emotion = '平静';
     
-    return `${speaker}|${type}|${emotion}|${text}|LIP_SYNC:YES`;
+    // 检测 speaker
+    let speaker = '角色';
+    if (shot?.characters && shot.characters.length > 0) {
+      speaker = shot.characters[0];
+      // 尝试从角色数据获取真实名称
+      if (characters?.[speaker]?.profile?.name) {
+        speaker = characters[speaker].profile.name;
+      }
+    }
+    
+    // 检测 type（独白/对白/呼喊）
+    let type = '独白';
+    if (shot?.interactionType === 'dialogue' || shot?.type === 'dialogue') {
+      type = '对白';
+    } else if (shot?.emotionPhase === 'climax' || shot?.type === 'climax') {
+      type = '呼喊';
+    }
+    
+    // 检测 emotion
+    const emotionMap = {
+      'establishing': '平静', 'rising': '好奇', 'building': '紧张',
+      'climax': '激动', 'resolve': '释然', 'neutral': '平静',
+      'tension': '紧张', 'conflict': '愤怒', 'awe': '敬畏',
+      'fear': '恐惧', 'anger': '愤怒', 'curious': '好奇',
+      'confusion': '困惑', 'relief': '释然', 'joy': '喜悦',
+      'sadness': '悲伤', 'surprise': '惊讶', 'trust': '信任',
+      'anticipation': '期待', 'disgust': '厌恶'
+    };
+    const emotion = emotionMap[shot?.emotionPhase] || '平静';
+    
+    // 清理文本（移除标记）
+    const cleanText = text.replace(/【.*?】/g, '').replace(/\|/g, '，').trim();
+    
+    return `${speaker}|${type}|${emotion}|${cleanText}|LIP_SYNC:YES`;
   }
 
   /**
@@ -5444,48 +5516,97 @@ ${isNirath
    */
   _extractSceneDescription(shot, stages) {
     const scene = shot.scene;
-    if (typeof scene === 'string') return scene;
+    if (typeof scene === 'string' && scene.length > 10) return scene;
     
     const parts = [];
-    if (scene?.name) parts.push(scene.name);
+    // 宏观：世界/地区名称
     if (scene?.nirathName) parts.push(scene.nirathName);
+    else if (scene?.name) parts.push(scene.name);
+    else if (this.mode === 'nirath') parts.push('Nirath');
+    
+    // 中观：环境特征
     if (scene?.description) parts.push(scene.description);
     if (scene?.atmosphere) parts.push(scene.atmosphere);
     
-    // 添加空间深度
+    // 微观：材质细节（简化正则，避免语法错误）
+    if (shot.visualPrompt) {
+      const materialWords = ['bioluminescent', 'crystalline', 'metallic', 'organic', 'stone', 'wood', 'water', 'fire', 'ice', 'sand', 'mud', 'grass', 'leaf', 'bark', 'rock', 'crystal', 'gem', 'metal', 'liquid', 'gas', 'plasma', 'dust', 'smoke', 'fog', 'mist', 'cloud', 'rain', 'snow', 'hail', 'sleet', 'dew', 'frost', 'slush', 'clay', 'gravel', 'pebble', 'boulder', 'mountain', 'hill', 'valley', 'canyon', 'gorge', 'ravine', 'cliff', 'bluff', 'ridge', 'peak', 'summit', 'top', 'crown', 'crest', 'apex', 'vertex', 'zenith', 'acme', 'pinnacle', 'height', 'altitude', 'elevation', 'level', 'layer', 'stratum', 'tier', 'story', 'floor', 'deck', 'platform', 'stage', 'phase', 'period', 'epoch', 'era', 'age', 'time', 'date', 'season', 'cycle', 'round', 'turn', 'lap', 'loop', 'circuit', 'circle', 'orbit', 'revolution', 'rotation', 'spin', 'twirl', 'whirl', 'swirl', 'eddy', 'vortex', 'whirlpool', 'maelstrom', 'turmoil', 'chaos', 'disorder', 'confusion', 'disarray', 'jumble', 'muddle', 'mess', 'clutter', 'litter', 'debris', 'rubble', 'wreckage', 'ruin', 'remain', 'remnant', 'relic', 'antique', 'heirloom', 'keepsake', 'memento', 'souvenir', 'token', 'trophy', 'prize', 'award', 'medal', 'decoration', 'ornament', 'adornment', 'embellishment', 'trimming', 'frill', 'flounce', 'ruffle', 'gather', 'pleat', 'tuck', 'fold', 'crease', 'wrinkle', 'crinkle', 'crumple', 'crush', 'squash', 'squeeze', 'compress', 'press', 'compact', 'condense', 'concentrate', 'focus', 'center', 'centralize', 'converge', 'merge', 'combine', 'unite', 'join', 'link', 'connect', 'attach', 'fasten', 'secure', 'anchor', 'ground', 'base', 'found', 'establish', 'set', 'place', 'put', 'lay', 'position', 'site', 'locate', 'situate', 'station', 'post', 'deploy', 'install'];
+      const foundMaterials = [];
+      for (const word of materialWords) {
+        if (shot.visualPrompt.toLowerCase().includes(word)) {
+          foundMaterials.push(word);
+          if (foundMaterials.length >= 3) break;
+        }
+      }
+      if (foundMaterials.length > 0) {
+        parts.push(foundMaterials.join(', '));
+      }
+    }
+    
+    // 时间：时间描述
+    if (shot.timeOfDay) parts.push(`time: ${shot.timeOfDay}`);
+    else if (scene?.timeOfDay) parts.push(`time: ${scene.timeOfDay}`);
+    
+    // 深度：空间深度
     if (shot.spatialDepth) parts.push(`spatial depth: ${shot.spatialDepth}`);
+    else if (scene?.spatialDepth) parts.push(`spatial depth: ${scene.spatialDepth}`);
+    else parts.push('spatial depth: atmospheric perspective');
     
     return parts.join(', ') || 'Nirath scene, atmospheric perspective';
   }
 
   /**
-   * v6.37-production+: 提取情绪关键词
+   * v6.37-production+: 提取情绪关键词（匹配超现实系统标准：3-5个关键词，逗号分隔）
    */
   _extractMoodKeywords(shot) {
     const moodMap = {
       establishing: 'mysterious, anticipation, wonder',
-      rising: 'tension, excitement, building',
+      rising: 'tension, curiosity, building',
       building: 'intensity, focus, determination',
-      climax: 'epic, powerful, emotional',
-      climax_peak: 'peak intensity, overwhelming, cathartic',
+      climax: 'epic, powerful, overwhelming',
+      climax_peak: 'cathartic, intense, emotional',
       resolve: 'peaceful, reflective, hopeful',
       resolution: 'peaceful, reflective, hopeful',
-      neutral: 'natural, balanced, calm'
+      neutral: 'natural, balanced, calm',
+      tension: 'suspense, anxiety, unease',
+      conflict: 'anger, struggle, confrontation',
+      awe: 'wonder, reverence, amazement',
+      fear: 'terror, dread, panic',
+      anger: 'rage, fury, indignation',
+      curious: 'inquisitive, intrigued, fascinated',
+      confusion: 'disoriented, puzzled, bewildered',
+      relief: 'solace, comfort, ease',
+      joy: 'elation, happiness, delight',
+      sadness: 'melancholy, sorrow, grief',
+      surprise: 'shock, astonishment, disbelief',
+      trust: 'confidence, reliance, faith',
+      anticipation: 'expectation, eagerness, suspense',
+      disgust: 'revulsion, aversion, repulsion'
     };
     
     return moodMap[shot.emotionPhase] || moodMap[shot.emotion] || 'mysterious, anticipation, wonder';
   }
 
   /**
-   * v6.37-production+: 提取动作描述
+   * v6.37-production+: 提取动作描述（匹配超现实系统标准：核心动词+交互目标）
    */
   _extractActionDescription(shot, prompt) {
+    // 从 prompt 提取动作标记
     const actionMatch = prompt.match(/【动作】([^【]+)/);
-    if (actionMatch) return actionMatch[1].trim().substring(0, 100);
+    if (actionMatch) {
+      const action = actionMatch[1].trim().substring(0, 100);
+      // 确保包含核心动词和交互目标
+      if (action.length > 5) return action;
+    }
     
+    // 从视觉提示提取
     const visualMatch = prompt.match(/【视觉】([^【]+)/);
-    if (visualMatch) return visualMatch[1].trim().substring(0, 100);
+    if (visualMatch) {
+      const visual = visualMatch[1].trim().substring(0, 100);
+      if (visual.length > 5) return visual;
+    }
     
+    // 默认动作描述
     return shot.visualPrompt || shot.narration || 'protagonist performs core action';
   }
 
@@ -5499,11 +5620,14 @@ ${isNirath
       const char = characters?.[cid];
       if (!char?.portraits) return '';
       
+      // 使用角色真实名称而非ID
+      const name = char.profile?.baseIdentity?.name || char.profile?.name || cid;
+      
       const paths = Object.entries(char.portraits)
-        .map(([angle, path]) => `image://characters/${cid}-${angle}.png`)
+        .map(([angle, path]) => `image://${path}`)
         .join(', ');
       
-      return `${cid}: ${paths}`;
+      return `${name}: ${paths}`;
     }).filter(Boolean);
     
     return refs.join(' | ') || 'NONE';
