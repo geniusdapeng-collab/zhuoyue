@@ -6125,24 +6125,72 @@ ${isNirath
     stages.integrityValidation = integrityResult;
 
     const output = {
-      prd: stages.prd,
-      characters: stages.characters,
-      script: stages.script,
-      storyboard: stages.storyboard,
-      cameraMovements: stages.camera,
-      prompts: stages.style,
-      postProduction: stages.postProduction,
-      validation: {
-        alignment: stages.alignment,
-        schema: stages.schema,
-        storyboard: stages.storyboardValidation,
-        compliance: stages.compliance,
-        preRender: stages.preRender,
-        integrity: integrityResult  // 新增
+      // ===== v6.37-production+: 新增标准输出格式 =====
+      meta: {
+        title: stages.prd?.title || stages.script?.title || '未命名短片',
+        worldview: this.mode || 'default',
+        totalDuration: stages.storyboard?.totalDuration || stages.duration?.totalDuration || 60,
+        openingDuration: stages.opening?.duration || 10,
+        fps: 24,
+        resolution: '1920x1080',
+        styleNotes: stages.prd?.style?.description || 'cinematic, hyperrealistic'
+      },
+      shots: stages.style?.map(prompt => ({
+        shotId: prompt.shotId,
+        duration: prompt.duration,
+        scene: prompt.scene || 'Nirath scene, atmospheric perspective',
+        mood: prompt.mood || 'mysterious, anticipation',
+        camera: prompt.camera || { shotSize: 'medium', movement: 'static', lens: '35mm', speed: 1 },
+        cameraString: prompt.cameraString || 'medium shot, static, 35mm lens, speed 1',
+        lighting: prompt.lighting || { keyLight: { direction: 'front', colorTemp: 4500, effect: 'neutral' }, fillLight: { direction: 'ambient', colorTemp: 4500, effect: 'soft fill' }, special: '' },
+        lightingString: prompt.lightingString || 'front 4500K, neutral, ambient fill',
+        characterRef: prompt.characterRef || 'NONE',
+        character: prompt.character || 'NONE',
+        action: prompt.action || 'protagonist performs core action',
+        dialogue: prompt.dialogue || 'NONE',
+        timeline: prompt.timeline || { start: 'T00:00', end: 'T00:10', duration: 10, type: 'establishing', mood: 'neutral' },
+        timelineString: prompt.timelineString || 'T00:00-T00:10 / duration: 10s',
+        backgroundSound: prompt.backgroundSound || { ambient: 'natural environment', spatial: 'ambient stereo', intensity: { steady: '0-100%', variations: 'subtle' } },
+        backgroundSoundString: prompt.backgroundSoundString || 'AMBIENT: natural environment',
+        audioLayer: prompt.audioLayer || null,
+        audioLayerString: prompt.audioLayerString || null,
+        titleOverlay: prompt.titleOverlay || null,
+        titleOverlayString: prompt.titleOverlayString || null,
+        prompt: prompt.prompt,
+        promptCharCount: prompt.promptCharCount || prompt.length || 0,
+        mouthAction: prompt.mouthAction || '',
+        physicsLayer: prompt.physicsLayer || '',
+        colorScience: prompt.colorScience || '',
+        negativePrompt: prompt.negativePrompt || 'no text, no watermark',
+        renderStyle: prompt.renderStyle || 'hyperrealistic cinematic',
+        directorStyle: prompt.directorStyle || 'cinematic documentary',
+        priorities: prompt.priorities || {},
+        qualityScore: prompt.qualityScore || {},
+        referenceImages: prompt.referenceImages || [],
+        utilization: prompt.utilization || 0,
+        utilizationStatus: prompt.utilizationStatus || ''
+      })) || [],
+      
+      // ===== 保留原始字段用于 backward compatibility =====
+      _legacy: {
+        prd: stages.prd,
+        characters: stages.characters,
+        script: stages.script,
+        storyboard: stages.storyboard,
+        cameraMovements: stages.camera,
+        postProduction: stages.postProduction,
+        validation: {
+          alignment: stages.alignment,
+          schema: stages.schema,
+          storyboard: stages.storyboardValidation,
+          compliance: stages.compliance,
+          preRender: stages.preRender,
+          integrity: integrityResult
+        }
       }
     };
 
-    this.log('STAGE-16', `✅ 最终输出 | 镜头数: ${output.prompts?.length || 0} | 完整性验证: ${integrityResult.valid ? '通过' : '未通过'}`);
+    this.log('STAGE-16', `✅ 最终输出 | 镜头数: ${output.shots?.length || 0} | meta: ${output.meta?.title || 'N/A'} | 完整性验证: ${integrityResult.valid ? '通过' : '未通过'}`);
     return output;
   }
 
