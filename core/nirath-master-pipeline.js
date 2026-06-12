@@ -5056,6 +5056,19 @@ ${isNirath
       // 最后兜底，补齐缺失字段
       prompt = this.ensureFinalPromptStructure(shot, prompt);
 
+      // ===== v6.37-production+: 字段完整性检查 =====
+      // 确保上游字段存在，否则使用默认值
+      if (!shot.scene) {
+        shot.scene = shot.narration || shot.visualPrompt || 'Nirath scene';
+        this.log('STAGE-11', `  ⚠️ ${shot.id} 缺少scene字段，使用默认值`);
+      }
+      if (!shot.emotionPhase) {
+        shot.emotionPhase = 'neutral';
+      }
+      if (!shot.duration) {
+        shot.duration = 10;
+      }
+      
       // ===== v6.37-production+ 字段扩展 =====
       // 构建结构化对象（从现有 shot 数据提取）
       const cameraObj = this._buildCameraObject(shot, movement);
