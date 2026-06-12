@@ -6247,13 +6247,15 @@ ${isNirath
     const integrityResult = validator.validatePipeline(stages);
 
     if (!integrityResult.valid) {
-      this.log('STAGE-16.5', `⛔ 链路验证失败!${integrityResult.summary.errorCount}个错误,${integrityResult.summary.warningCount}个警告`, 'error');
+      const errorCount = integrityResult.summary?.errorCount || integrityResult.errors?.length || 0;
+      const warningCount = integrityResult.summary?.warningCount || integrityResult.warnings?.length || 0;
+      this.log('STAGE-16.5', `⛔ 链路验证失败!${errorCount}个错误,${warningCount}个警告`, 'error');
 
       // 输出具体失败模块
-      const failedChecks = integrityResult.checks.filter(c => !c.passed);
+      const failedChecks = (integrityResult.checks || []).filter(c => !c.passed);
       for (const check of failedChecks) {
-        this.log('STAGE-16.5', `  ❌ ${check.stage}: ${check.name}`, 'error');
-        for (const detail of check.details) {
+        this.log('STAGE-16.5', `  ❌ ${check.stage || 'UNKNOWN'}: ${check.name || '未知'}`, 'error');
+        for (const detail of (check.details || [])) {
           this.log('STAGE-16.5', `      → ${detail}`, 'error');
         }
       }
@@ -6261,12 +6263,13 @@ ${isNirath
       // 记录到错误列表
       this.errors.push({
         stage: 'STAGE-16.5',
-        message: `链路完整性验证失败: ${integrityResult.summary.errorCount}个错误`,
+        message: `链路完整性验证失败: ${errorCount}个错误`,
         details: integrityResult.errors
       });
 
     } else {
-      this.log('STAGE-16.5', `✅ 链路完整性验证通过 | 全部${integrityResult.summary.totalChecks}项检查通过`);
+      const totalChecks = integrityResult.summary?.totalChecks || integrityResult.checks?.length || 0;
+      this.log('STAGE-16.5', `✅ 链路完整性验证通过 | 全部${totalChecks}项检查通过`);
     }
 
     // 将验证结果附加到输出
