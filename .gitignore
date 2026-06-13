@@ -1,0 +1,18 @@
+# Generated assets
+characters/*/portraits/
+characters/*/portraits-v*/
+characters/*/reference-photos/
+output/
+
+# Node
+node_modules/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+tmp/
+temp/
+*.tmp
