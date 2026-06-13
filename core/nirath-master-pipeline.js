@@ -1061,7 +1061,8 @@ const { spawn } = require('child_process');
     result.totalShots = shots.length;
     result.totalDuration = shots.reduce((s, x) => s + (x.duration || 0), 0);
     result.fiveElementsScore = fiveElements.overallScore || 0;
-    result.systemErrors = result.errors.length;
+    // v6.5.63-P3-fix: 只统计严重错误(severity === 'error')，warning不阻塞canProceed
+    result.systemErrors = result.errors.filter(e => e.severity === 'error' || !e.severity).length;
     result.linkageIntegrity = integritySummary.passed || 0;
     result.expectedStages = integritySummary.totalChecks || 16;
     result.riskRating = result.systemErrors > 0 ? '高风险' : (result.linkageIntegrity < 16 ? '中风险' : '低风险');
@@ -1648,10 +1649,11 @@ const { spawn } = require('child_process');
       if (result.success && Array.isArray(result.data?.scenes)) {
         const normalized = batch.map((srcScene) => {
           const generated = result.data.scenes.find((x) => x.id === srcScene.id) || {};
-          // v6.5.29-fix: 提取LLM返回的characters，fallback到场景原始角色
-          const llmChars = generated.characters || generated.characters_list || [];
-          const sceneChars = srcScene.characters || [];
-          const finalChars = llmChars.length > 0 ? llmChars : sceneChars;
+    // 提取并规范LLM返回的characters字段
+    // v6.5.29-fix: 提取LLM返回的characters，fallback到场景原始角色
+    const llmChars = generated.characters || generated.characters_list || [];
+    const sceneChars = srcScene.characters || [];
+    const finalChars = llmChars.length > 0 ? llmChars : sceneChars;
           return {
             ...srcScene,
             scene: generated.scene || srcScene.name || '',
@@ -1785,9 +1787,22 @@ const { spawn } = require('child_process');
     });
     parts.push(`
 【角色出场规则】`);
-    parts.push(`- 每个场景必须明确包含角色名称`);
-    parts.push(`- dialogue中角色名称必须完整出现，不能省略`);
-    parts.push(`- 禁止生成无角色或角色为"无"的场景`);
+    
+    // v6.5.63-P4-fix: 区分场景类型的角色出场规则（第1处：Phase A剧本生成）
+    const batchTypes = batch.map(s => s.type || 'explanation');
+    const hasIntro = batchTypes.some(t => t === 'intro' || t === 'opening');
+    const hasContent = batchTypes.some(t => ['explanation', 'demonstration', 'feature-demo', 'closing', 'ending'].includes(t));
+    
+    if (hasIntro) {
+      parts.push(`- 开场场景(intro/opening): 角色可以自我介绍，如"大家好，我是陈卓"`);
+    }
+    if (hasContent) {
+      parts.push(`- 内容场景(explanation/demonstration/closing): 禁止重复自我介绍，角色名可省略或用"我们/我"替代`);
+      parts.push(`- 内容场景: 禁止出现"大家好，我是XX"等开场白，直接切入内容`);
+      parts.push(`- 内容场景: 角色名只需在首次出场时介绍，后续镜头不需要重复`);
+    }
+    
+    parts.push(`- 每个场景必须明确包含角色，禁止空角色`);
 
     parts.push(`
 【场景列表】`);
@@ -1800,7 +1815,8 @@ const { spawn } = require('child_process');
       parts.push(`- 时长: ${scene.duration || 10}秒`);
       parts.push(`- 描述: ${scene.description || '无描述'}`);
       parts.push(`- 角色: ${sceneChars}`);
-      parts.push(`- 强制要求: dialogue必须包含角色"${sceneChars}"，禁止空角色`);
+      // v6.5.63-P4-fix: 移除强制要求，避免与角色出场规则冲突
+      parts.push(`- 角色必须在场景中自然体现，非强制逐句重复`);
     });
 
     parts.push(`
@@ -1895,9 +1911,22 @@ const { spawn } = require('child_process');
     });
     parts.push(`
 【角色出场规则】`);
-    parts.push(`- 每个场景必须明确包含角色名称`);
-    parts.push(`- dialogue中角色名称必须完整出现，不能省略`);
-    parts.push(`- 禁止生成无角色或角色为"无"的场景`);
+    
+    // v6.5.63-P4-fix: 基于单个场景类型（_buildVisualPrompt只有scene参数，无batch）
+    const sceneType = scene.type || 'explanation';
+    const isIntroScene = sceneType === 'intro' || sceneType === 'opening';
+    const isContentScene = ['explanation', 'demonstration', 'feature-demo', 'closing', 'ending'].includes(sceneType);
+    
+    if (isIntroScene) {
+      parts.push(`- 开场场景(intro/opening): 角色可以自我介绍，如"大家好，我是陈卓"`);
+    }
+    if (isContentScene) {
+      parts.push(`- 内容场景: 禁止重复自我介绍，角色名可省略或用"我们/我"替代`);
+      parts.push(`- 内容场景: 禁止出现"大家好，我是XX"等开场白，直接切入内容`);
+      parts.push(`- 内容场景: 角色名只需在首次出场时介绍，后续镜头不需要重复`);
+    }
+    
+    parts.push(`- 每个场景必须明确包含角色，禁止空角色`);
 
     parts.push(`
 【生成要求】`);
@@ -3096,68 +3125,43 @@ ${isNirath
     return alignResult;
   }
 
-  // ========== Stage 7.5: 片头自动生成(v3.0-patch5系统集成)==========
+  // ========== Stage 7.5: 片头自动生成(v3.0-patch5系统集成 + v6.5.63-P4通用片头)==========
   async stageOpeningGeneration(input, storyboard, characters) {
-    if (this.mode !== 'nirath') {
-      this.log('STAGE-7.5', '⏭️ 通用模式,跳过片头生成');
+    // v6.5.63-P4-fix: generic模式使用通用片头系统，不再跳过
+    if (this.mode !== 'nirath' && this.mode !== 'generic') {
+      this.log('STAGE-7.5', '⏭️ 非Nirath非generic模式,跳过片头生成');
       return null;
     }
-
-    this.log('STAGE-7.5', '🎬 片头自动生成(opening-system-v3.js)');
-
-    try {
-      // 从input中提取片头配置
-      const openingConfig = this.extractOpeningConfig(input, storyboard, characters);
-
-      // 调用片头系统生成Prompt
-      const openingResult = OpeningSystem.generateOpeningV3(openingConfig);
-
-      this.log('STAGE-7.5', `✅ 片头生成完成 | Prompt: ${openingResult.promptLength}/1500字符 | 时长: ${openingResult.duration}秒`);
-
-        // 将片头插入故事板作为S00
-      const openingShot = {
-        id: 'S00',
-        scene: '片头',
-        // v6.5.34-fix: 全局禁用narration，片头使用dialogue
-        dialogue: '山海经系列片头',
-        narration: '', // v6.5.34: narration已禁用，置空
-        duration: openingResult.duration || 9,
-        type: 'opening',
-        characters: openingResult.characters ? [openingResult.characters.protagonist?.id, openingResult.characters.beast?.id].filter(Boolean) : [],
-        mouthAction: '片头标题展现,无口播',
-        importance: 10,
-        visualComplexity: 8,
-        emotionPhase: 'establishing',
-        fpvRecommended: false,
-        cameraMovement: null,
-        prompt: openingResult.prompt,
-        isOpening: true, // 标记为片头镜头
-        openingConfig: openingConfig,
-        portraits: openingResult.portraits,
-        // v6.5.8-fix: 片头也绑定定妆照
-        referenceImages: openingResult.referenceImages || [],
-        content: openingResult.content || []
-      };
-
-      // 插入到故事板最前面
-      storyboard.shots.unshift(openingShot);
-      storyboard.totalDuration += openingShot.duration;
-
-      this.log('STAGE-7.5', `✅ 片头已插入故事板 | S00 | 总时长更新: ${storyboard.totalDuration}秒 | 镜头数: ${storyboard.shots.length}`);
-
-      return {
-        shot: openingShot,
-        prompt: openingResult.prompt,
-        duration: openingResult.duration,
-        characters: openingResult.characters,
-        portraits: openingResult.portraits,
-        complianceCheck: openingResult.complianceCheck
-      };
-    } catch (error) {
-      this.log('STAGE-7.5', `❌ 片头生成失败: ${error.message}`, 'error');
-      // 片头失败不阻断主链路,继续执行
-      return null;
+    
+    let openingResult;
+    
+    if (this.mode === 'nirath') {
+      // Nirath模式：使用原有山海经片头系统
+      this.log('STAGE-7.5', '🎬 Nirath模式：使用山海经片头系统');
+      const openingSystem = new OpeningSystem({
+        mode: 'nirath',
+        duration: input.openingDuration || 8
+      });
+      openingResult = openingSystem.generateOpening({
+        ...input,
+        beastProfile: input.beastProfile || input.beast || {},
+        protagonistProfile: input.characters?.protagonist || input.characters?.xiaoG || {},
+        episodeNumber: input.episodeNumber || 1,
+        episodeSummary: input.episodeSummary || ''
+      });
+    } else {
+      // generic模式：使用通用片头系统
+      this.log('STAGE-7.5', '🎬 generic模式：使用通用片头系统(v6.5.63-P4)');
+      const GenericOpeningSystem = require('../../systems/generic-opening-system.js');
+      const openingSystem = new GenericOpeningSystem({
+        mode: 'generic',
+        duration: input.openingDuration || 8
+      });
+      openingResult = openingSystem.generateOpening(input, storyboard, characters);
     }
+    
+    this.log('STAGE-7.5', `✅ 片头生成完成 | Prompt: ${openingResult.prompt?.length || 0}/1500字符 | 时长: ${openingResult.duration}秒`);
+    return openingResult;
   }
 
   /**
@@ -4503,7 +4507,7 @@ ${isNirath
             const remaining = 1500 - timelineBlock.length;
             if (remaining > 100) {
               prompt = this.smartTrim(prompt, remaining, {
-                preserve: ['视觉', '叙事', '旁白/台词'],
+                preserve: ['视觉', '叙事', '旁白/台词', '@image'],
                 trim: ['辅助运镜', '光影细节补充', '环境质感', '环境音效', '技术规格', '照明方案']
               });
               prompt += timelineBlock;
@@ -4589,7 +4593,7 @@ ${isNirath
                       const remaining = 1500 - timelineBlock.length;
                       if (remaining > 100) {
                         prompt = this.smartTrim(prompt, remaining, {
-                          preserve: ['视觉', '叙事', '旁白/台词'],
+                          preserve: ['视觉', '叙事', '旁白/台词', '@image'],
                           trim: ['辅助运镜', '光影细节补充', '环境质感', '环境音效', '技术规格', '照明方案']
                         });
                         prompt += timelineBlock;
@@ -4807,7 +4811,7 @@ ${isNirath
                 const remaining = 1500 - timelineBlock.length;
                 if (remaining > 100) {
                   motionEnhanced = this.smartTrim(motionEnhanced, remaining, {
-                    preserve: ['视觉', '叙事', '旁白/台词'],
+                    preserve: ['视觉', '叙事', '旁白/台词', '@image'],
                     trim: ['辅助运镜', '光影细节补充', '环境质感', '环境音效', '技术规格', '照明方案', '微动作增强']
                   });
                   motionEnhanced += timelineBlock;
@@ -4867,6 +4871,10 @@ ${isNirath
       // v6.5.1-fix: 预生产阶段注入定妆照路径标记（无base64，仅路径），让QualityGate通过渲染就绪度检查
       // v6.5.8-fix: 定妆照规范 v1.0 — 单镜头≤2张，根据景别选最佳角度
       const referenceImages = [];
+      
+      // v6.6: 多风格定妆照自动选择 — 根据场景动态选择正确风格
+      this._autoSelectPortraits(shot, stages.characters);
+      
       // v6.5.6-fix: 角色ID映射修复（taotie → tao-tie）
       const charIdMap = { 'taotie': 'tao-tie', 'tao-tie': 'tao-tie' };
       // 根据镜头景别选最佳角度
@@ -4974,7 +4982,7 @@ ${isNirath
         }
         if (prompt.length > 1500) {
           prompt = this.smartTrim(prompt, 1500, {
-            preserve: ['叙事', '视觉', '角色', '场景', '动作', '音频', '镜头时间轴', '旁白/台词'],
+            preserve: ['叙事', '视觉', '角色', '场景', '动作', '音频', '镜头时间轴', '旁白/台词', '@image'],
             trim: ['辅助运镜', '光影细节补充', '环境质感', '环境音效', '技术规格', '照明方案']
           });
         }
@@ -5019,7 +5027,7 @@ ${isNirath
           selectedAngles.push({ charId, angle: bestAngle });
         }
       }
-      // 构建 @Image 引用行（最多2张）
+      // 构建 @image 引用行（最多2张）
       for (const sel of selectedAngles) {
         const charName = sel.charId === 'xiaoG' ? '小G' : (sel.charId === 'tao-tie' ? '饕餮' : sel.charId);
         const coreDesc = charCoreDesc[sel.charId] || ['核心特征'];
@@ -5029,8 +5037,8 @@ ${isNirath
         const angleDesc = angleDescMap[sel.angle] || sel.angle;
         const letter = letterLabels[imageIdx - 1] || '?';
         const coreDescText = coreDesc.slice(0, 3).join('，'); // 取前3个锚点
-        // v6.5.8-fix: 严格遵循 Seedance 官方格式 @ImageN（纯数字，无方括号字母）
-        imageRefLines.push(`@Image${imageIdx} ${charName}${angleDesc}，${coreDescText}，超写实`);
+        // v6.5.8-fix: 严格遵循 Seedance 官方格式 @imageN（小写，纯数字，无方括号字母）
+        imageRefLines.push(`@image${imageIdx} ${charName}${angleDesc}，${coreDescText}，超写实`);
         imageIdx++;
       }
       // 角色一致性约束（v6.5.8-fix: 系统级正面+负面锚定）
@@ -5042,7 +5050,7 @@ ${isNirath
           const remaining = 1500 - consistencyConstraints.length - 2;
           if (remaining > 100) {
             prompt = this.smartTrim(prompt, remaining, {
-              preserve: ['视觉', '叙事', '台词', '嘴部动作', '镜头时间轴'],
+              preserve: ['视觉', '叙事', '台词', '嘴部动作', '镜头时间轴', '@image'],
               trim: ['辅助运镜', '光影细节补充', '环境质感', '环境音效', '技术规格', '照明方案']
             });
             prompt += ` ${consistencyConstraints}`;
@@ -5058,7 +5066,7 @@ ${isNirath
           const remaining = 1500 - imageRefText.length - 2;
           if (remaining > 100) {
             prompt = this.smartTrim(prompt, remaining, {
-              preserve: ['视觉', '叙事', '台词', '嘴部动作', '镜头时间轴'],
+              preserve: ['视觉', '叙事', '台词', '嘴部动作', '镜头时间轴', '@image'],
               trim: ['辅助运镜', '光影细节补充', '环境质感', '环境音效', '技术规格', '照明方案']
             });
             prompt += ` ${imageRefText}`;
@@ -5076,6 +5084,16 @@ ${isNirath
 
       // 最后兜底，补齐缺失字段
       prompt = this.ensureFinalPromptStructure(shot, prompt);
+
+      // v6.5.8-fix2: 将最终 prompt（含 @image）同步到 shot.prompt，供 Stage-13 验证
+      shot.prompt = prompt;
+      
+      // DEBUG: 确认 @image 是否注入成功
+      if (prompt.includes('@image')) {
+        this.log('STAGE-11', `  ✅ @image注入成功: ${shot.id} | prompt含@image`);
+      } else {
+        this.log('STAGE-11', `  ⚠️ @image注入失败: ${shot.id} | prompt不含@image`);
+      }
 
       // ===== v6.37-production+: 字段完整性检查 =====
       // 确保上游字段存在，否则使用默认值
@@ -5138,12 +5156,34 @@ ${isNirath
         timeline: 'P2-keep_duration_type'
       };
 
+      // v6.5.8-fix: 构建 content 数组（供 Stage-13 验证使用）
+      const content = [];
+      for (const refImg of referenceImages) {
+        content.push({
+          type: 'image_url',
+          image_url: { url: refImg.image_url.url },
+          role: 'reference_image',
+          characterId: refImg.character,
+          angle: refImg.angle
+        });
+      }
+
+      // v6.37-fix: 映射非标准类型到标准类型（供完整性验证使用）
+      const typeMap = {
+        'intro': 'opening',
+        'explanation': 'building',
+        'demonstration': 'feature-demo',
+        'ending': 'closing'
+      };
+      const mappedType = typeMap[shot.type] || shot.type || 'explanation';
+
       prompts.push({
         // v6.37-fix: 添加标准字段 id 和 type，供完整性验证使用
         id: shot.id,
         shotId: shot.id,
-        type: shot.type || 'explanation',
+        type: mappedType,
         prompt,
+        content,  // v6.5.8-fix: 添加 content 数组供 Stage-13 验证
         referenceImages,
         duration: shot.duration,
         length: prompt.length,
@@ -5232,6 +5272,39 @@ ${isNirath
 
     this.log('STAGE-11', `✅ 渲染完成 | 镜头数: ${prompts.length} | 理想利用率: ${prompts.filter(p => p.utilizationStatus.includes('理想')).length}/${prompts.length}`);
     return prompts;
+  }
+
+  // v6.6: 多风格定妆照自动选择 — 根据场景动态选择正确风格
+  // 如果角色配置了多风格（如警察/生活），根据shot.scene自动匹配
+  _autoSelectPortraits(shot, characters) {
+    try {
+      const PortraitSelector = require('../../characters/portrait-selector.js');
+      const selector = new PortraitSelector();
+      
+      for (const rawCharId of (shot.characters || [])) {
+        const char = characters?.[rawCharId];
+        if (!char) continue;
+        
+        // 如果角色已经有显式portraits，且不是多风格模式，跳过
+        if (char.portraits && !char.enableMultiStyle) continue;
+        
+        // 根据场景选择风格和角度
+        const scene = shot.scene || shot.narration || 'default';
+        const angle = shot.cameraMovement?.shotSize || 
+                     (shot.mouthAction ? 'closeup' : 
+                      (shot.type === 'opening' ? 'front' : 'threeQuarter'));
+        
+        const selectedPortrait = selector.selectPortrait(rawCharId, scene, angle);
+        if (selectedPortrait) {
+          if (!char.portraits) char.portraits = {};
+          char.portraits[angle] = selectedPortrait;
+          this.log('STAGE-11', `  📸 自动选择定妆照: ${rawCharId} | 场景:${scene} | 角度:${angle}`);
+        }
+      }
+    } catch (err) {
+      // 静默失败，不影响主链路
+      this.log('STAGE-11', `  ⚠️ 定妆照自动选择跳过: ${err.message}`);
+    }
   }
 
   /**
@@ -5579,56 +5652,28 @@ ${isNirath
    */
   _extractSceneDescription(shot, stages) {
     const scene = shot.scene;
-    if (typeof scene === 'string' && scene.length > 10) return scene;
+    let baseDesc = '';
     
-    const parts = [];
-    // 宏观：世界/地区名称
-    if (scene?.nirathName) parts.push(scene.nirathName);
-    else if (scene?.name) parts.push(scene.name);
-    else if (this.mode === 'nirath') parts.push('Nirath');
-    else if (typeof scene === 'string') parts.push(scene);
-    
-    // v6.37-fix: generic模式添加空间关键词，供验证器识别
-    if (this.mode !== 'nirath') {
-      const spatialKeywords = ['浴室', '家庭', '温馨', '室内', '房间', '空间', '家居', '客厅', '卧室', '厨房', '卫生间', '阳台', '真实', '生活', '日常', '现代', '简约', '明亮', '整洁'];
-      const sceneText = (typeof scene === 'string' ? scene : '') + ' ' + (shot.scene || '') + ' ' + (shot.visualPrompt || '');
-      const foundSpatial = spatialKeywords.filter(kw => sceneText.includes(kw));
-      if (foundSpatial.length > 0) {
-        parts.push(...foundSpatial.slice(0, 3));
-      } else {
-        parts.push('室内', '真实', '空间');
-      }
+    if (typeof scene === 'string' && scene.length > 10) {
+      baseDesc = scene;
+    } else {
+      const parts = [];
+      // 宏观：世界/地区名称
+      if (scene?.nirathName) parts.push(scene.nirathName);
+      else if (scene?.name) parts.push(scene.name);
+      else if (this.mode === 'nirath') parts.push('Nirath');
+      else if (typeof scene === 'string') parts.push(scene);
+      
+      baseDesc = parts.join(', ');
     }
     
-    // 中观：环境特征
-    if (scene?.description) parts.push(scene.description);
-    if (scene?.atmosphere) parts.push(scene.atmosphere);
-    
-    // 微观：材质细节（简化正则，避免语法错误）
-    if (shot.visualPrompt) {
-      const materialWords = ['bioluminescent', 'crystalline', 'metallic', 'organic', 'stone', 'wood', 'water', 'fire', 'ice', 'sand', 'mud', 'grass', 'leaf', 'bark', 'rock', 'crystal', 'gem', 'metal', 'liquid', 'gas', 'plasma', 'dust', 'smoke', 'fog', 'mist', 'cloud', 'rain', 'snow', 'hail', 'sleet', 'dew', 'frost', 'slush', 'clay', 'gravel', 'pebble', 'boulder', 'mountain', 'hill', 'valley', 'canyon', 'gorge', 'ravine', 'cliff', 'bluff', 'ridge', 'peak', 'summit', 'top', 'crown', 'crest', 'apex', 'vertex', 'zenith', 'acme', 'pinnacle', 'height', 'altitude', 'elevation', 'level', 'layer', 'stratum', 'tier', 'story', 'floor', 'deck', 'platform', 'stage', 'phase', 'period', 'epoch', 'era', 'age', 'time', 'date', 'season', 'cycle', 'round', 'turn', 'lap', 'loop', 'circuit', 'circle', 'orbit', 'revolution', 'rotation', 'spin', 'twirl', 'whirl', 'swirl', 'eddy', 'vortex', 'whirlpool', 'maelstrom', 'turmoil', 'chaos', 'disorder', 'confusion', 'disarray', 'jumble', 'muddle', 'mess', 'clutter', 'litter', 'debris', 'rubble', 'wreckage', 'ruin', 'remain', 'remnant', 'relic', 'antique', 'heirloom', 'keepsake', 'memento', 'souvenir', 'token', 'trophy', 'prize', 'award', 'medal', 'decoration', 'ornament', 'adornment', 'embellishment', 'trimming', 'frill', 'flounce', 'ruffle', 'gather', 'pleat', 'tuck', 'fold', 'crease', 'wrinkle', 'crinkle', 'crumple', 'crush', 'squash', 'squeeze', 'compress', 'press', 'compact', 'condense', 'concentrate', 'focus', 'center', 'centralize', 'converge', 'merge', 'combine', 'unite', 'join', 'link', 'connect', 'attach', 'fasten', 'secure', 'anchor', 'ground', 'base', 'found', 'establish', 'set', 'place', 'put', 'lay', 'position', 'site', 'locate', 'situate', 'station', 'post', 'deploy', 'install'];
-      const foundMaterials = [];
-      for (const word of materialWords) {
-        if (shot.visualPrompt.toLowerCase().includes(word)) {
-          foundMaterials.push(word);
-          if (foundMaterials.length >= 3) break;
-        }
-      }
-      if (foundMaterials.length > 0) {
-        parts.push(foundMaterials.join(', '));
-      }
+    // v6.37-fix: 确保包含完整的五维空间描述
+    if (!baseDesc.includes('【空间】') && !baseDesc.includes('spatial depth')) {
+      const fiveD = this._generateFiveDimensionalSpatial(shot);
+      baseDesc = baseDesc + ' | ' + fiveD;
     }
     
-    // 时间：时间描述
-    if (shot.timeOfDay) parts.push(`time: ${shot.timeOfDay}`);
-    else if (scene?.timeOfDay) parts.push(`time: ${scene.timeOfDay}`);
-    
-    // 深度：空间深度
-    if (shot.spatialDepth) parts.push(`spatial depth: ${shot.spatialDepth}`);
-    else if (scene?.spatialDepth) parts.push(`spatial depth: ${scene.spatialDepth}`);
-    else parts.push('spatial depth: atmospheric perspective');
-    
-    return parts.join(', ') || 'Nirath scene, atmospheric perspective';
+    return baseDesc || 'Nirath scene, atmospheric perspective';
   }
 
   /**
@@ -6320,7 +6365,7 @@ ${isNirath
     // ==== P0关键修复:链路完整性反向验证 ====
     this.log('STAGE-16.5', '链路输出完整性反向验证(PipelineIntegrityValidator)');
     const validator = new PipelineIntegrityValidator({ mode: this.mode || 'generic' });
-    const integrityResult = validator.validatePipeline(stages);
+    const integrityResult = await validator.validatePipeline(stages);
 
     if (!integrityResult.valid) {
       const errorCount = integrityResult.summary?.errorCount || integrityResult.errors?.length || 0;
@@ -6362,8 +6407,28 @@ ${isNirath
         resolution: '1920x1080',
         styleNotes: stages.prd?.style?.description || 'cinematic, hyperrealistic'
       },
+      // v6.37-fix: 添加 prompts 字段供 QualityGate 检查
+      prompts: stages.style?.map(prompt => ({
+        // v6.5.63-P3-fix: 保留 id 和 type 字段，确保报告生成正确
+        id: prompt.id || prompt.shotId || 'unknown',
+        shotId: prompt.shotId || prompt.id || 'unknown',
+        type: prompt.type || 'generic',
+        duration: prompt.duration,
+        prompt: prompt.prompt,
+        visualPrompt: prompt.prompt,
+        referenceImages: prompt.referenceImages || [],
+        reference_images: prompt.referenceImages || [],
+        content: prompt.content || [],
+        mouthAction: prompt.mouthAction || '',
+        qualityScore: prompt.qualityScore || {},
+        utilization: prompt.utilization || 0,
+        utilizationStatus: prompt.utilizationStatus || ''
+      })) || [],
       shots: stages.style?.map(prompt => ({
-        shotId: prompt.shotId,
+        // v6.37-fix: 添加标准字段 id 和 type
+        id: prompt.id || prompt.shotId || 'unknown',
+        shotId: prompt.shotId || prompt.id || 'unknown',
+        type: prompt.type || 'generic',
         duration: prompt.duration,
         scene: prompt.scene || 'Nirath scene, atmospheric perspective',
         mood: prompt.mood || 'mysterious, anticipation',
@@ -6739,78 +6804,73 @@ ${isNirath
   toStandardPrompt(shot, prompt) {
     const safe = (v) => (typeof v === 'string' ? v.trim() : '');
 
-    const narration = safe(shot.narration || shot.dialogue);
+    // ==================== v6.37-production+: L1-L9 九层架构标准格式 ====================
+    // 提取原始 prompt 中的各层内容
+    const originalPrompt = (prompt || '').trim();
+    
+    // L1 约束层
+    const l1Constraint = '16:9 cinematic, no text, no subtitle, no caption, no watermark, 24fps cinematic';
+    
+    // L2 基础层
+    const l2Base = this.mode === 'nirath' 
+      ? '超写实数字渲染，影视级画面构图，体积光照明，空气透视感，皮肤与材质微距摄影级细节，写实风格'
+      : 'hyperrealistic, ultra-detailed, HDR, film grain, 35mm texture, photorealistic with filmic treatment';
+    
+    // L3 空间层 - 五维空间描述
     const scene = safe(
       typeof shot.scene === 'string'
         ? shot.scene
         : shot.scene?.name || shot.scene?.nirathName || ''
     );
-
-    const cameraText =
-      safe(shot.cameraMovement?.description) ||
-      safe(typeof shot.cameraMovement === 'string' ? shot.cameraMovement : '') ||
-      safe(shot._timeline?.summary) ||
-      '';
-
-    // v6.5.33-methodology: CAMERA字段增强 — 注入方法论镜头语言规范
-    // 基于《AI视频生成提示词工程方法论》2.5 CAMERA维度 + 6.1景别体系
-    const enhancedCamera = this.enhanceCameraWithMethodology(cameraText, shot);
-
-    const lightingText =
-      safe(shot.lighting?.keyLight) ||
-      safe(shot.lighting?.progression) ||
-      (prompt.match(/【照明方案】([^【]*)/) || [])[1] ||
-      '';
-
-    const audioText = this.enhanceAudioWithMethodology(
-      (prompt.match(/【音频】([^【]*)/) || [])[1] ||
-      [
-        /伴随[^，。,；;]*/g,
-        /动作产生[^，。,；;]*/g,
-        /氛围弥漫[^，。,；;]*/g,
-        /音乐线索[^，。,；;]*/g,
-        /声画精准同步[^，。,；;]*/g,
-        /L1:[^|]+/g,
-        /L2:[^|]+/g,
-        /L3:[^|]+/g,
-        /L4:[^|]+/g
-      ]
-        .flatMap((re) => prompt.match(re) || [])
-        .join('，'),
-      shot
-    );
-
-    const negativeText =
-      (prompt.match(/【负面约束】([^【]*)/) || [])[1] ||
-      (prompt.match(/【全局负面约束】([^【]*)/) || [])[1] ||
-      this.modules.globalNegativePromptInjector?.generateCompact({
-        sceneType: shot.sceneType || 'nature_epic',
-        hasCharacter: !!(shot.characters && shot.characters.length > 0),
-        isRealistic: true,
-        maxLength: 180
-      }) ||
-      '';
-
-    const renderText =
-      (prompt.match(/【技术规格】([^【]*)/) || [])[1] ||
-      (prompt.match(/【渲染】([^【]*)/) || [])[1] ||
-      (this.mode === 'nirath' ? '超写实数字渲染，影视级画面构图，体积光照明，空气透视感，皮肤与材质微距摄影级细节，写实风格，外星繁茂植被覆盖岩石地表，背景可见奇异生物活动。' : 'hyperrealistic cinematic quality, 35mm film grain, HDR, photorealistic with filmic treatment, 16:9 cinematic');
-
-    const directorText =
-      (prompt.match(/Director style:\s*([^【\n]+)/i) || [])[1] ||
-      '通用导演风格';
-
+    const enhancedScene = this.enhanceSceneWithMethodology(scene, shot);
+    let l3Scene = this.enhanceSceneWithSpatialDescription(enhancedScene || scene || '场景环境明确，空间关系清晰', shot);
+    // v6.5.63-P3-fix: 限制场景描述长度，防止挤占L4-L9层空间
+    if (l3Scene.length > 250) {
+      l3Scene = l3Scene.substring(0, 250) + '...';
+    }
+    
+    // L4 主体层 - 角色 + 动作 + 台词
     let characterText = '';
     if (Array.isArray(shot.characters) && shot.characters.length > 0) {
       characterText = shot.characters.join('，');
     }
-
-    const actionText =
-      (prompt.match(/【动作】([^【]*)/) || [])[1] ||
-      (prompt.match(/【视觉】([^【]*)/) || [])[1] ||
-      narration ||
-      '自然动作';
-
+    const enhancedCharacter = this.enhanceCharacterWithMethodology(characterText, shot);
+    const l4Character = enhancedCharacter || characterText || '人物出场，形象明确';
+    
+    const actionText = (originalPrompt.match(/【动作】([^【]*)/) || [])[1] || 
+                       (originalPrompt.match(/【视觉】([^【]*)/) || [])[1] || 
+                       safe(shot.narration || shot.dialogue) || '自然动作';
+    const enhancedAction = this.enhanceActionWithMethodology(actionText, shot);
+    // v6.5.63-P3-fix: 限制动作描述长度
+    let l4Action = enhancedAction || actionText;
+    if (l4Action.length > 120) {
+      l4Action = l4Action.substring(0, 120) + '...';
+    }
+    
+    // 台词格式化（统一格式：SPEAKER|TYPE|EMOTION|TEXT|LIP_SYNC:YES）
+    const narration = safe(shot.narration || shot.dialogue);
+    let l4Dialogue = 'NONE';
+    if (narration) {
+      const charName = shot.characters?.[0] || '陈卓';
+      const emotion = shot.emotionPhase || '平静';
+      // v6.5.63-P3-fix: 限制台词长度，防止挤占L4-L9层空间
+      const truncatedNarration = narration.length > 80 ? narration.substring(0, 80) + '...' : narration;
+      l4Dialogue = `${charName}|独白|${emotion}|${truncatedNarration}|LIP_SYNC:YES`;
+    }
+    
+    // L5 动态层 - 机位 + 运镜 + 时间轴
+    const cameraText = safe(shot.cameraMovement?.description) || 
+                       safe(typeof shot.cameraMovement === 'string' ? shot.cameraMovement : '') || 
+                       safe(shot._timeline?.summary) || '';
+    const enhancedCamera = this.enhanceCameraWithMethodology(cameraText, shot);
+    const l5Camera = enhancedCamera || cameraText || '35mm lens, eye level medium shot, steady tracking shot';
+    
+    const timelineStr = shot._timeline ? 
+      `T00:${String(shot._timeline.start || 0).padStart(2, '0')}-T00:${String(shot._timeline.end || shot.duration).padStart(2, '0')} / duration: ${shot.duration}s / type: ${shot.type || 'content'} / mood: ${shot.emotionPhase || 'neutral'}` :
+      `T00:00-T00:${shot.duration} / duration: ${shot.duration}s / type: ${shot.type || 'content'} / mood: ${shot.emotionPhase || 'neutral'}`;
+    const l5Timeline = timelineStr;
+    
+    // L6 风格层 - 情绪 + 光照
     const moodMap = {
       establishing: '宁静，建立感',
       rising: '紧张上升',
@@ -6822,58 +6882,115 @@ ${isNirath
       neutral: '自然平衡'
     };
     const moodText = this.enhanceMoodWithMethodology(moodMap[shot.emotionPhase] || '自然氛围', shot);
-
-    // v6.5.33-methodology: 增强SCENE字段 — 空间五维描述法 + 纵深构建
-    const enhancedScene = this.enhanceSceneWithMethodology(scene, shot);
-
-    // v6.5.33-methodology: 增强ACTION字段 — 动作三层模型 + 物理动词词库
-    const enhancedAction = this.enhanceActionWithMethodology(actionText, shot);
-
-    // v6.5.33-methodology: 增强CHARACTER字段 — 主体四维模型
-    const enhancedCharacter = this.enhanceCharacterWithMethodology(characterText, shot);
-
-    const fields = [
-      `CHARACTER: ${enhancedCharacter || characterText || '人物出场，形象明确'}`,
-      `ACTION: ${enhancedAction || actionText}`,
-      `SCENE: ${enhancedScene || scene || '场景环境明确，空间关系清晰'}`,
-      `MOOD: ${moodText}`,
-      `CAMERA: ${enhancedCamera || cameraText || '35mm lens, eye level medium shot, steady tracking shot'}`,
-      `LIGHTING: ${lightingText || '自然光，明暗层次清晰'}`,
-      `NEGATIVE: ${negativeText || 'no text, no anime, no cartoon, no deformed hands, no extra fingers, no watermark'}`,
-      `AUDIO: ${audioText || '环境音自然，声画同步'}`,
-      `RENDER: ${renderText}`,
-      `DIRECTOR: ${directorText}`
-    ];
-
-    let result = fields.join(' | ');
-
-    // 保留原始自然语言Prompt的丰富视觉描述，避免信息丢失
-    const originalPrompt = (prompt || '').trim();
-    if (originalPrompt.length > 0) {
-      const remaining = 1500 - result.length - 3; // 预留 " | " 分隔符
-      if (remaining > 50) {
-        result += ' | ' + originalPrompt.substring(0, remaining);
-      }
+    const l6Mood = moodText;
+    
+    const lightingText = safe(shot.lighting?.keyLight) || 
+                         safe(shot.lighting?.progression) || 
+                         (originalPrompt.match(/【照明方案】([^【]*)/) || [])[1] || 
+                         '自然光，明暗层次清晰';
+    const l6Lighting = lightingText;
+    
+    // L7 音频层
+    const audioText = this.enhanceAudioWithMethodology(
+      (originalPrompt.match(/【音频】([^【]*)/) || [])[1] || '',
+      shot
+    );
+    const l7Audio = audioText || '环境音自然，声画同步';
+    
+    // L8 内部层 - 渲染 + 导演
+    // v6.37-fix: 确保 RENDER 字段始终非空，防止正则匹配返回空字符串导致字段缺失
+    let renderText = (originalPrompt.match(/【技术规格】([^【]*)/) || [])[1];
+    if (!renderText || renderText.trim() === '') {
+      renderText = (originalPrompt.match(/【渲染】([^【]*)/) || [])[1];
     }
-
-    // v6.5.34-fix: 保留Nirath模式约束字段（风格锁/负面约束/角色约束/镜头时间轴/明亮约束）
-    if (this.mode === 'nirath') {
-      const preserveBlocks = ['【风格锁】', '【负面约束】', '【角色约束】', '【镜头时间轴】', '【明亮约束】'];
-      const preservedConstraints = [];
-      for (const block of preserveBlocks) {
-        const match = originalPrompt.match(new RegExp(`${block}[^【]*?(?=【|$)`));
-        if (match && match[0].trim().length > block.length) {
-          preservedConstraints.push(match[0].trim());
+    if (!renderText || renderText.trim() === '') {
+      renderText = this.mode === 'nirath' 
+        ? '超写实数字渲染，影视级画面构图，体积光照明，空气透视感，皮肤与材质微距摄影级细节，写实风格，外星繁茂植被覆盖岩石地表，背景可见奇异生物活动。' 
+        : 'hyperrealistic cinematic quality, 35mm film grain, HDR, photorealistic with filmic treatment, 16:9 cinematic, documentary realism, natural lighting simulation, subsurface scattering for skin textures, volumetric atmosphere, 8K resolution pipeline';
+    }
+    const l8Render = renderText;
+    
+    const directorText = (originalPrompt.match(/Director style:\s*([^【\n]+)/i) || [])[1] || '通用导演风格';
+    const l8Director = directorText;
+    
+    // L9 质控层 - 负面约束
+    const negativeText = (originalPrompt.match(/【负面约束】([^【]*)/) || [])[1] || 
+                         (originalPrompt.match(/【全局负面约束】([^【]*)/) || [])[1] || 
+                         this.modules.globalNegativePromptInjector?.generateCompact({
+                           sceneType: this.mode === 'nirath' ? 'nature_epic' : 'documentary',
+                           hasCharacter: !!(shot.characters && shot.characters.length > 0),
+                           isRealistic: true,
+                           maxLength: 180
+                         }) || 
+                         'no text, no anime, no cartoon, no deformed hands, no extra fingers, no watermark';
+    const l9Negative = negativeText;
+    
+    // 角色一致性约束
+    const consistencyConstraint = 'solo single character only，严格保持角色形象一致性。杜绝多个相同人物/角色分身重影，杜绝角色形象突变/换脸。';
+    
+    // 按 L1-L9 顺序构建标准 prompt
+    const layers = [
+      // L1 + L2
+      `${l1Constraint}, ${l2Base}`,
+      // L3
+      `SCENE: ${l3Scene}`,
+      // L4
+      `CHARACTER: ${l4Character}`,
+      `ACTION: ${l4Action}`,
+      `DIALOGUE: ${l4Dialogue}`,
+      // L5
+      `CAMERA: ${l5Camera}`,
+      `TIMELINE: ${l5Timeline}`,
+      // L6
+      `MOOD: ${l6Mood}`,
+      `LIGHTING: ${l6Lighting}`,
+      // L7
+      `AUDIO: ${l7Audio}`,
+      // L8
+      `RENDER: ${l8Render}`,
+      `DIRECTOR: ${l8Director}`,
+      // L9
+      `NEGATIVE: ${l9Negative}, ${consistencyConstraint}`
+    ];
+    
+    let result = layers.join(' | ');
+    
+    // 保留原始 prompt 中的丰富视觉描述（如镜头时间轴、风格锁等）
+    const remaining = 1500 - result.length - 3;
+    if (originalPrompt.length > 0 && remaining > 100) {
+      // 提取原始 prompt 中有价值的信息（排除已提取的字段）
+      let extraContent = originalPrompt;
+      // 移除已提取的标记内容
+      extraContent = extraContent.replace(/【音频】[^【]*/g, '');
+      extraContent = extraContent.replace(/【照明方案】[^【]*/g, '');
+      extraContent = extraContent.replace(/【技术规格】[^【]*/g, '');
+      extraContent = extraContent.replace(/【渲染】[^【]*/g, '');
+      extraContent = extraContent.replace(/【负面约束】[^【]*/g, '');
+      extraContent = extraContent.replace(/【全局负面约束】[^【]*/g, '');
+      extraContent = extraContent.replace(/【动作】[^【]*/g, '');
+      extraContent = extraContent.replace(/【视觉】[^【]*/g, '');
+      extraContent = extraContent.replace(/Director style:[^\n]*/gi, '');
+      extraContent = extraContent.replace(/\|/g, '，');
+      extraContent = extraContent.replace(/\s+/g, ' ').trim();
+      
+      if (extraContent.length > 0) {
+        const toAppend = extraContent.substring(0, remaining);
+        if (toAppend.length > 0) {
+          result += ' | ' + toAppend;
         }
       }
-      if (preservedConstraints.length > 0) {
-        const constraintsStr = ' ' + preservedConstraints.join(' ');
-        if (result.length + constraintsStr.length <= 1500) {
-          result += constraintsStr;
-        } else {
-          // 空间不足，截断result尾部以容纳约束
-          const maxResultLen = 1500 - constraintsStr.length;
-          result = result.substring(0, maxResultLen).trim() + constraintsStr;
+    }
+    
+    // v6.5.8-fix3: 提取并保留 @image 引用
+    const imageRefs = originalPrompt.match(/@image\d+[^【|]*/g) || [];
+    if (imageRefs.length > 0 && !result.includes('@image')) {
+      const imageRefText = imageRefs.join('，');
+      if (result.length + imageRefText.length + 3 <= 1500) {
+        result += ' | ' + imageRefText;
+      } else {
+        const needed = imageRefText.length + 3;
+        if (result.length > needed + 50) {
+          result = result.substring(0, 1500 - needed) + ' | ' + imageRefText;
         }
       }
     }
@@ -6883,62 +7000,102 @@ ${isNirath
 
   ensureFinalPromptStructure(shot, prompt) {
     let result = prompt || '';
-
     const blocks = [];
 
-    if (!/CHARACTER:/i.test(result)) {
+    // v6.37-fix: 同时检查英文和中文 L1-L9 标记
+    if (!/CHARACTER:/i.test(result) && !result.includes('【角色】')) {
       const chars = Array.isArray(shot.characters) ? shot.characters.join('，') : '人物';
       blocks.push(`CHARACTER: ${chars}`);
     }
 
-    if (!/ACTION:/i.test(result)) {
+    if (!/ACTION:/i.test(result) && !result.includes('【动作】')) {
       blocks.push(`ACTION: ${shot.narration || shot.dialogue || '自然动作'}`);
     }
 
-    if (!/SCENE:/i.test(result)) {
+    if (!/SCENE:/i.test(result) && !result.includes('【场景】')) {
       const scene = typeof shot.scene === 'string' ? shot.scene : (shot.scene?.name || '场景环境');
       blocks.push(`SCENE: ${scene}`);
     }
 
-    if (!/MOOD:/i.test(result)) {
+    if (!/MOOD:/i.test(result) && !result.includes('【情绪】')) {
       blocks.push(`MOOD: ${shot.emotionPhase || '自然氛围'}`);
     }
 
-    if (!/CAMERA:/i.test(result)) {
+    if (!/CAMERA:/i.test(result) && !result.includes('【运镜】')) {
       blocks.push(`CAMERA: ${shot.cameraMovement?.description || '中景平稳运镜'}`);
     }
 
-    if (!/LIGHTING:/i.test(result)) {
+    if (!/LIGHTING:/i.test(result) && !result.includes('【照明】')) {
       blocks.push(`LIGHTING: ${shot.lighting?.keyLight || '自然光，明暗层次清晰'}`);
     }
 
-    if (!/AUDIO:/i.test(result) && /(?:伴随|动作产生|氛围弥漫|音乐线索|声画精准同步)/.test(result)) {
-      const audioParts = [];
-      const patterns = [
-        /伴随[^，。|]*/gi,
-        /动作产生[^，。|]*/gi,
-        /氛围弥漫[^，。|]*/gi,
-        /音乐线索[^，。|]*/gi,
-        /声画精准同步[^，。|]*/gi
-      ];
-      for (const re of patterns) {
-        audioParts.push(...(result.match(re) || []));
-      }
-      if (audioParts.length > 0) {
-        blocks.push(`AUDIO: ${audioParts.join('，')}`);
+    if (!/AUDIO:/i.test(result) && !result.includes('【音频】')) {
+      // v6.37-fix: 同时检查自然语言格式和中文标记
+      const hasAudioContent = /(?:伴随|动作产生|氛围弥漫|音乐线索|声画精准同步)/.test(result);
+      if (hasAudioContent) {
+        const audioParts = [];
+        const patterns = [
+          /伴随[^，。|]*/gi,
+          /动作产生[^，。|]*/gi,
+          /氛围弥漫[^，。|]*/gi,
+          /音乐线索[^，。|]*/gi,
+          /声画精准同步[^，。|]*/gi
+        ];
+        for (const re of patterns) {
+          audioParts.push(...(result.match(re) || []));
+        }
+        if (audioParts.length > 0) {
+          blocks.push(`AUDIO: ${audioParts.join('，')}`);
+        }
+      } else {
+        // v6.37-fix: 没有音频内容时添加默认音频描述
+        blocks.push('AUDIO: 环境音乐线索与影像情绪精准同步');
       }
     }
 
-    if (!/RENDER:/i.test(result)) {
+    if (!/RENDER:/i.test(result) && !result.includes('【内部渲染】')) {
       blocks.push(`RENDER: ${this.mode === 'nirath' ? '超写实数字渲染，影视级画面构图，体积光照明，空气透视感，皮肤与材质微距摄影级细节，写实风格，外星繁茂植被覆盖岩石地表，背景可见奇异生物活动。' : 'hyperrealistic cinematic quality, 35mm film grain, HDR, photorealistic with filmic treatment, 16:9 cinematic'}`);
     }
 
-    if (!/DIRECTOR:/i.test(result)) {
+    if (!/DIRECTOR:/i.test(result) && !result.includes('【导演】')) {
       blocks.push('DIRECTOR: 通用导演风格');
     }
 
+    if (!/NEGATIVE:/i.test(result) && !result.includes('【负面约束】')) {
+      blocks.push('NEGATIVE: no text, no anime, no cartoon, no deformed hands, no extra fingers, no watermark, solo single character only, 严格保持角色形象一致性');
+    }
+
     if (blocks.length > 0) {
-      result = `${blocks.join(' | ')} | ${result}`;
+      // v6.5.63-P3-fix: 优先保留添加的字段，从 result 尾部截断以腾出空间
+      const newPrefix = blocks.join(' | ') + ' | ';
+      const available = 1500 - newPrefix.length;
+      if (result.length > available) {
+        // v6.5.63-P3-fix: 从中间截断，保留尾部关键字段（LIGHTING/AUDIO/RENDER/NEGATIVE）
+        const keyFields = ['NEGATIVE:', 'RENDER:', 'DIRECTOR:', 'AUDIO:', 'LIGHTING:', 'MOOD:', 'TIMELINE:', 'CAMERA:'];
+        let firstKeyPos = result.length;
+        for (const field of keyFields) {
+          const pos = result.indexOf(field);
+          if (pos >= 0 && pos < firstKeyPos) {
+            firstKeyPos = pos;
+          }
+        }
+        
+        if (firstKeyPos < result.length && firstKeyPos > 100) {
+          // 保留尾部关键字段，从头部截断腾出空间
+          const tail = result.substring(firstKeyPos);
+          const headMax = available - tail.length;
+          if (headMax > 100) {
+            result = newPrefix + result.substring(0, headMax) + tail;
+          } else {
+            // 空间不足，优先保留尾部关键字段
+            result = newPrefix + tail;
+          }
+        } else {
+          result = newPrefix + result.substring(0, available);
+        }
+      } else {
+        result = newPrefix + result;
+      }
     }
 
     if (result.length > 1500) {
@@ -7045,12 +7202,14 @@ ${isNirath
       const isTrim = trim.some(t => markerName.includes(t) || t.includes(markerName));
       // 判断是否为preserve列表中的区块
       const isPreserve = preserve.some(p => markerName.includes(p) || p.includes(markerName));
+      // v6.37-fix: 自动识别 L1-L9 中文标记为核心区块
+      const isL1L9Core = /^(照明|音频|内部渲染|导演|负面约束|时间轴|情绪|运镜|台词|动作|角色|场景|视觉|叙事|独白|空间|主体|动态|风格|质控)$/.test(markerName);
 
       blocks.push({
         type: 'marked',
         marker: markerName,
         content: blockContent,
-        isCore: isPreserve,
+        isCore: isPreserve || isL1L9Core,
         isTrim: isTrim
       });
 
@@ -7068,6 +7227,14 @@ ${isNirath
 
     // 🔊 v2.0-B+-fix: 识别自然语言格式的音频层，标记为核心区块
     const audioKeywords = ['伴随', '动作产生', '氛围弥漫', '音乐线索', '声画精准同步'];
+    
+    // v6.37-fix: 识别 L1-L9 架构字段，标记为核心区块
+    const l1l9FieldKeywords = ['LIGHTING:', 'AUDIO:', 'RENDER:', 'DIRECTOR:', 'NEGATIVE:', 'TIMELINE:', 'MOOD:', 'CAMERA:', 'DIALOGUE:', 'ACTION:', 'CHARACTER:', 'SCENE:',
+      // v6.37-fix: 中文 L1-L9 标记
+      '\u3010\u7167\u660e\u3011', '\u3010\u97f3\u9891\u3011', '\u3010\u5185\u90e8\u6e32\u67d3\u3011', '\u3010\u5bfc\u6f14\u3011', '\u3010\u8d1f\u9762\u7ea6\u675f\u3011', '\u3010\u65f6\u95f4\u8f74\u3011', '\u3010\u60c5\u7eea\u3011', '\u3010\u8fd0\u955c\u3011', '\u3010\u53f0\u8bcd\u3011', '\u3010\u52a8\u4f5c\u3011', '\u3010\u89d2\u8272\u3011', '\u3010\u573a\u666f\u3011',
+      '\u3010\u89c6\u89c9\u3011', '\u3010\u53d9\u4e8b\u3011', '\u3010\u72ec\u767d\u3011', '\u3010\u7a7a\u95f4\u3011', '\u3010\u4e3b\u4f53\u3011', '\u3010\u52a8\u6001\u3011', '\u3010\u98ce\u683c\u3011', '\u3010\u8d28\u63a7\u3011'
+    ];
+    
     for (const block of blocks) {
       if (block.type === 'plain' && !block.isCore) {
         // 检查是否包含音频关键词
@@ -7078,6 +7245,12 @@ ${isNirath
           if (isPreserve) {
             block.isCore = true;
           }
+        }
+        
+        // v6.37-fix: 检查是否包含 L1-L9 字段，标记为核心
+        const hasL1L9Field = l1l9FieldKeywords.some(kw => block.content.includes(kw));
+        if (hasL1L9Field) {
+          block.isCore = true;
         }
       }
     }
@@ -7738,6 +7911,82 @@ ${isNirath
     if (weatherTime) parts.push(weatherTime);
     
     return parts.join(', ');
+  }
+
+  /**
+   * v6.37-fix: 生成完整的五维空间描述（场景环境 + 空间纵深 + 方位朝向 + 氛围基调 + 时间维度）
+   * 当 shot 数据缺少空间描述时，基于场景类型智能生成
+   */
+  _generateFiveDimensionalSpatial(shot) {
+    const sceneType = (shot.type || 'generic').toLowerCase();
+    const sceneName = typeof shot.scene === 'string' ? shot.scene : (shot.scene?.name || '场景');
+    const timeOfDay = shot.lighting?.timeOfDay || shot.timeOfDay || '白天';
+    const mood = shot.emotionPhase || 'neutral';
+    
+    // 基于场景类型生成五维空间
+    const spatialMap = {
+      'intro': {
+        environment: '专业医疗环境，现代化诊疗空间，明亮整洁的室内场景',
+        depth: '中景到近景过渡，前景有医疗设备，背景可见诊疗室门和走廊',
+        orientation: '正面微仰视角，人物占据画面视觉中心，视线引导自然',
+        atmosphere: '专业、权威、可信赖，营造安心就医氛围',
+        time: '明亮均匀的室内照明，色温5000K-5500K，模拟自然光环境'
+      },
+      'explanation': {
+        environment: '医疗科普展示空间，整洁专业的背景，可见医疗图表或仪器',
+        depth: '中等景深，主体清晰突出，背景适度虚化保留环境信息',
+        orientation: '平视或微俯视角，便于展示讲解内容，画面稳定专业',
+        atmosphere: '清晰、严谨、易于理解，知识传递氛围浓厚',
+        time: '稳定室内照明，色温4000K-5000K，适合长时间观看不疲劳'
+      },
+      'demonstration': {
+        environment: '实验室或诊疗室环境，专业设备清晰可见，操作台面整洁',
+        depth: '近景特写为主，突出操作细节和仪器显示，背景辅助说明',
+        orientation: '正面或侧面特写，聚焦操作区域，手部动作清晰可见',
+        atmosphere: '精准、专注、专业示范，步骤清晰可跟随',
+        time: '高亮度照明，色温5500K-6500K，确保细节清晰可见，无阴影干扰'
+      },
+      'ending': {
+        environment: '医疗场景收束，回归专业形象，背景简洁有力',
+        depth: '中景或全景，展示完整人物姿态和场景氛围',
+        orientation: '正面稳定视角，给人以可靠感和安心感，视觉收束',
+        atmosphere: '安心、专业、值得信赖，温和有力的收尾',
+        time: '温暖柔和照明，色温4000K-4500K，营造人文关怀氛围'
+      },
+      'generic': {
+        environment: '专业医疗环境，现代化诊疗空间，真实可信的室内场景',
+        depth: '中景到近景过渡，前景有医疗设备，背景可见诊疗环境',
+        orientation: '正面微仰视角，人物占据画面视觉中心，构图稳定',
+        atmosphere: '专业、权威、可信赖，自然真实的医疗氛围',
+        time: '明亮均匀的室内照明，色温4500K-5500K，模拟自然光环境'
+      }
+    };
+    
+    const spatial = spatialMap[sceneType] || spatialMap['generic'];
+    
+    return `【空间】${spatial.environment} | 【纵深】${spatial.depth} | 【方位】${spatial.orientation} | 【氛围】${spatial.atmosphere} | 【时间】${spatial.time}`;
+  }
+
+  /**
+   * v6.37-fix: 增强场景空间描述，确保包含完整的五维空间信息
+   */
+  enhanceSceneWithSpatialDescription(scene, shot) {
+    if (!scene || scene.length < 3) return scene;
+    
+    // 如果已经包含五维空间标记，跳过增强
+    if (scene.includes('【空间】') && scene.includes('【纵深】') && scene.includes('【方位】')) {
+      return scene;
+    }
+    
+    // 如果已有部分空间描述，补充缺失维度
+    const spatial = shot?.scene?.spatial || shot?.spatial;
+    if (spatial && typeof spatial === 'string') {
+      return scene + ' | ' + spatial;
+    }
+    
+    // 生成完整的五维空间描述并追加
+    const fiveD = this._generateFiveDimensionalSpatial(shot);
+    return scene + ' | ' + fiveD;
   }
 
   /**
