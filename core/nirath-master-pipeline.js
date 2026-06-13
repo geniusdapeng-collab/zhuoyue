@@ -2331,53 +2331,28 @@ ${isNirath
         () => StagePrompts.STAGE_6_DURATION(script.scenes || [], totalDuration),
         {
           llmEngine: this._createLLMEngine({ maxTokens: 2048 }),
-          llmOptions: { maxTokens: 2048, temperature: 0.5 }
+          llmOptions: { maxTokens: 2048, temperature: 0.5 },
+          // v6.5.64-P2-fix: 强制结构化JSON输出，避免content=0问题
+          structured: true,
+          schema: {
+            allocations: [
+              { sceneId: "string", duration: "number", reason: "string" }
+            ],
+            totalAllocated: "number",
+            optimizationLevel: "string",
+            strategy: "string"
+          }
         }
       );
 
       this.log('STAGE-6', `✅ LLM时长分配完成 | 驱动: ${driver} | 尝试: ${attempts}次`);
 
-      let llmResult;
-      // v6.5.64-P1-fix: 修复LLM返回content=0时JSON解析失败的问题
-      // LLM可能把token全部用在reasoning上，content为空，需要从reasoning_content提取
-      if (typeof result === 'string') {
-        llmResult = JSON.parse(result);
-      } else if (result.data) {
-        llmResult = result.data;
-      } else if (result.content && typeof result.content === 'string' && result.content.trim()) {
-        // 优先从content解析JSON
-        try {
-          llmResult = JSON.parse(result.content);
-        } catch (e) {
-          // content不是合法JSON，可能是纯文本
-          llmResult = result.content;
-        }
-      } else if (result.reasoning_content && typeof result.reasoning_content === 'string') {
-        // content为空，尝试从reasoning_content提取JSON对象
-        const reasoning = result.reasoning_content;
-        // 尝试匹配JSON对象（{...}）或JSON数组（[...]）
-        const jsonMatch = reasoning.match(/\{[\s\S]*?\}(?=\s*$|\s*\n)/) || reasoning.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          try {
-            llmResult = JSON.parse(jsonMatch[0]);
-            this.log('STAGE-6', `🎯 从reasoning_content提取JSON成功`);
-          } catch (e) {
-            this.log('STAGE-6', `⚠️ reasoning_content中的JSON解析失败: ${e.message}`);
-            llmResult = result;
-          }
-        } else {
-          llmResult = result;
-        }
-      } else {
-        llmResult = result;
-      }
-
-      // 验证LLM返回的格式
-      if (llmResult.allocations && Array.isArray(llmResult.allocations)) {
-        llmAllocations = llmResult.allocations;
+      // v6.5.64-P2-fix: result已经是解析好的JSON对象（reasonStructured返回）
+      if (result && result.allocations && Array.isArray(result.allocations)) {
+        llmAllocations = result.allocations;
         this.log('STAGE-6', `🎯 LLM分配: ${llmAllocations.length}个镜头 | 总时长: ${llmAllocations.reduce((s,a) => s + (a.duration || 0), 0)}s`);
       } else {
-        this.log('STAGE-6', `⚠️ LLM返回格式不正确，缺少allocations字段 | 返回类型: ${typeof llmResult} | keys: ${Object.keys(llmResult || {}).join(',')}`);
+        this.log('STAGE-6', `⚠️ LLM返回格式不正确，缺少allocations字段 | result类型: ${typeof result} | 是否null: ${result === null}`);
       }
     } catch (e) {
       this.log('STAGE-6', `⚠️ LLM时长分配失败: ${e.message} | 继续运行规则分配`);
