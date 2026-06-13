@@ -589,7 +589,7 @@ class NirathMasterPipeline {
       }
 
       // Stage 9: 运镜系统(Nirath v2 + FPV导演决策)
-      result.stages.camera = await runStage('STAGE-9', () => this.stageCameraMovement(result.stages.storyboard, result.stages.fpvDecision));
+      result.stages.camera = await runStage('STAGE-9', () => this.stageCameraMovement(result.stages.storyboard, result.stages.fpvDecision, result.stages.duration));
 
       // Stage 10: 连续性检查
       result.stages.continuity = await runStage('STAGE-10', () => this.stageContinuity(result.stages.storyboard));
@@ -2338,10 +2338,36 @@ ${isNirath
       this.log('STAGE-6', `✅ LLM时长分配完成 | 驱动: ${driver} | 尝试: ${attempts}次`);
 
       let llmResult;
+      // v6.5.64-P1-fix: 修复LLM返回content=0时JSON解析失败的问题
+      // LLM可能把token全部用在reasoning上，content为空，需要从reasoning_content提取
       if (typeof result === 'string') {
         llmResult = JSON.parse(result);
       } else if (result.data) {
         llmResult = result.data;
+      } else if (result.content && typeof result.content === 'string' && result.content.trim()) {
+        // 优先从content解析JSON
+        try {
+          llmResult = JSON.parse(result.content);
+        } catch (e) {
+          // content不是合法JSON，可能是纯文本
+          llmResult = result.content;
+        }
+      } else if (result.reasoning_content && typeof result.reasoning_content === 'string') {
+        // content为空，尝试从reasoning_content提取JSON对象
+        const reasoning = result.reasoning_content;
+        // 尝试匹配JSON对象（{...}）或JSON数组（[...]）
+        const jsonMatch = reasoning.match(/\{[\s\S]*?\}(?=\s*$|\s*\n)/) || reasoning.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            llmResult = JSON.parse(jsonMatch[0]);
+            this.log('STAGE-6', `🎯 从reasoning_content提取JSON成功`);
+          } catch (e) {
+            this.log('STAGE-6', `⚠️ reasoning_content中的JSON解析失败: ${e.message}`);
+            llmResult = result;
+          }
+        } else {
+          llmResult = result;
+        }
       } else {
         llmResult = result;
       }
@@ -2351,7 +2377,7 @@ ${isNirath
         llmAllocations = llmResult.allocations;
         this.log('STAGE-6', `🎯 LLM分配: ${llmAllocations.length}个镜头 | 总时长: ${llmAllocations.reduce((s,a) => s + (a.duration || 0), 0)}s`);
       } else {
-        this.log('STAGE-6', `⚠️ LLM返回格式不正确，缺少allocations字段`);
+        this.log('STAGE-6', `⚠️ LLM返回格式不正确，缺少allocations字段 | 返回类型: ${typeof llmResult} | keys: ${Object.keys(llmResult || {}).join(',')}`);
       }
     } catch (e) {
       this.log('STAGE-6', `⚠️ LLM时长分配失败: ${e.message} | 继续运行规则分配`);
@@ -3572,7 +3598,7 @@ ${isNirath
   }
 
   // ========== Stage 9: 运镜系统(Nirath v3 + 镜头内时间轴 + FPV导演决策)==========
-  async stageCameraMovement(storyboard, fpvDecision) {
+  async stageCameraMovement(storyboard, fpvDecision, durations) {
     this.log('STAGE-9', `运镜系统${this.mode === 'nirath' ? '(Nirath v3 + 镜头内多段式时间轴 + FPV导演决策)' : '(v6.5.64-P0: LLM驱动)'}`);
 
     // v6.5.64-P0: 尝试LLM驱动运镜设计
@@ -3581,7 +3607,7 @@ ${isNirath
       try {
         const { result, driver, attempts } = await this.llmEnforcer.requireLLM(
           'STAGE-9',
-          () => StagePrompts.STAGE_9_CAMERA(storyboard.shots || [], this.mode),
+          () => StagePrompts.STAGE_9_CAMERA(storyboard.shots || [], durations),
           {
             llmEngine: this._createLLMEngine({ maxTokens: 4096 }),
             llmOptions: { maxTokens: 4096, temperature: 0.7 }
@@ -9225,7 +9251,7 @@ async function runStandaloneStage(pipeline, stageName, upstreamStages = {}, inpu
     'STAGE-7.5': () => pipeline.stageOpeningGeneration(input, upstreamStages.storyboard, upstreamStages.characters),
     'STAGE-8': () => pipeline.stageStoryboardValidation(upstreamStages.storyboard, input),
     'STAGE-8.5': () => pipeline.stageFiveElementCheck(upstreamStages.storyboard, input),
-    'STAGE-9': () => pipeline.stageCameraMovement(upstreamStages.storyboard, upstreamStages.fpvDecision),
+    'STAGE-9': () => pipeline.stageCameraMovement(upstreamStages.storyboard, upstreamStages.fpvDecision, upstreamStages.duration),
     'STAGE-10': () => pipeline.stageContinuity(upstreamStages.storyboard),
     'STAGE-10.5': () => pipeline.stageSafetyGate(upstreamStages),
     'STAGE-11': () => pipeline.stageRender(upstreamStages),
