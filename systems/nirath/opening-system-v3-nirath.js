@@ -54,18 +54,18 @@ const {
   getEcosystemDescription,
   getBrightnessMandate,
   sanitizePrompt
-} = require('./nirath/nirath-bible');
+} = require('./nirath-bible');
 
-const CameraEngine = require('./nirath/astralis-camera-engine');
-const { generateTitlePresentation } = require('./title-presentation-agent');
+const CameraEngine = require('./astralis-camera-engine');
+const { generateTitlePresentation } = require('../title-presentation-agent');
 
 // ===== v2.2新增:神兽人声签名引擎 =====
 const { BeastVoiceSignatureEngine } = require('./beast-voice-signature-engine');
 // 【v6.2-patch54】神兽开场白Agent — 一句话震撼人心
-const { BeastOpeningLineAgent } = require('./nirath/beast-opening-line-agent');
+const { BeastOpeningLineAgent } = require('./beast-opening-line-agent');
 
 // ===== v6.0-patch38新增:全局负面提示词注入器 =====
-const { globalNegativePromptInjector } = require('./global-negative-prompts');
+const { globalNegativePromptInjector } = require('../global-negative-prompts');
 
 // ===== v6.0-patch39新增:神兽出场Agent + 小G活泼动作系统 =====
 const { beastEntranceAgent } = require('./beast-entrance-agent');

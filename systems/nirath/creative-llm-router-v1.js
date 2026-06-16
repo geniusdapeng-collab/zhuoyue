@@ -1,4 +1,4 @@
-const { LLMEngine } = require('./llm-reasoning-engine');
+const { LLMEngine } = require('../llm-reasoning-engine');
 
 class CreativeLLMRouter {
   constructor(options = {}) {

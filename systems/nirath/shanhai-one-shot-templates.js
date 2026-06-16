@@ -11,7 +11,7 @@
  * 集成方式：WorldviewConsistencyEngine → 自动调用
  */
 
-const { ExperiencePackSelector } = require('./fpv-experience-library.js');
+const { ExperiencePackSelector } = require('../fpv-experience-library.js');
 
 // ========== 山海经一镜到底场景模板库 ==========
 const SHANHAI_ONE_SHOT_TEMPLATES = {

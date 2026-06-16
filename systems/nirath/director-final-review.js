@@ -12,8 +12,8 @@
  * @author 系统
  */
 
-const { DirectorStyleLibrary } = require('./director-style-library.js');
-const { LLMEngine } = require('./llm-reasoning-engine'); // v6.2-patch70: 接入 LLM 推理
+const { DirectorStyleLibrary } = require('../director-style-library.js');
+const { LLMEngine } = require('../llm-reasoning-engine'); // v6.2-patch70: 接入 LLM 推理
 
 class DirectorFinalReview {
   constructor(options = {}) {
