@@ -1,19 +1,40 @@
 const { AdventureCinematographySystem } = require('./adventure-cinematography-system');
 const { AmbientSoundDesignerBridge } = require('./ambient-sound-designer.bridge');
-const { BeastEntranceAgentBridge } = require('./nirath/beast-entrance-agent.bridge');
 const { CameraMovementSystemV3Bridge } = require('./camera-movement-system-v3.bridge');
-const { BeastOpeningLineAgent } = require('./nirath/beast-opening-line-agent');
-const { BeastVoiceSignatureEngine } = require('./beast-voice-signature-engine');
 
 class SubsystemOrchestratorV2 {
   constructor(options = {}) {
     this.options = options;
     this.adventure = new AdventureCinematographySystem(options.adventure || {});
     this.soundBridge = new AmbientSoundDesignerBridge(options.sound || {});
-    this.beastBridge = new BeastEntranceAgentBridge(options.beast || {});
     this.cameraBridge = new CameraMovementSystemV3Bridge(options.camera || {});
-    this.openingLineAgent = new BeastOpeningLineAgent(options.openingLine || {});
-    this.voiceEngine = new BeastVoiceSignatureEngine();
+    this.beastBridge = null; // 懒加载
+    this.openingLineAgent = null; // 懒加载
+    this.voiceEngine = null; // 懒加载
+  }
+
+  _getBeastBridge() {
+    if (!this.beastBridge) {
+      const { BeastEntranceAgentBridge } = require('./nirath/beast-entrance-agent.bridge');
+      this.beastBridge = new BeastEntranceAgentBridge(this.options.beast || {});
+    }
+    return this.beastBridge;
+  }
+
+  _getOpeningLineAgent() {
+    if (!this.openingLineAgent) {
+      const { BeastOpeningLineAgent } = require('./nirath/beast-opening-line-agent');
+      this.openingLineAgent = new BeastOpeningLineAgent(this.options.openingLine || {});
+    }
+    return this.openingLineAgent;
+  }
+
+  _getVoiceEngine() {
+    if (!this.voiceEngine) {
+      const { BeastVoiceSignatureEngine } = require('./beast-voice-signature-engine');
+      this.voiceEngine = new BeastVoiceSignatureEngine();
+    }
+    return this.voiceEngine;
   }
 
   async run(shot, context = {}) {
@@ -46,8 +67,8 @@ class SubsystemOrchestratorV2 {
         context.index || 0,
         context.totalShots || 1,
         {
-          protagonistName: context.protagonistName || '小G',
-          beastName: context.beastName || '异兽',
+          protagonistName: context.protagonistName || '主讲人',
+          beastName: context.beastName || '',
           habitat: context.habitat || shot.scene || '',
           ability: context.ability || ''
         }
@@ -76,22 +97,22 @@ class SubsystemOrchestratorV2 {
       activatedSubsystems.push('AmbientSoundDesignerBridge');
     } catch (e) {}
 
-    // 4. 异兽出场 bridge
+    // 4. 异兽出场 bridge (仅Nirath模式且有beast时)
     let beastFields = {};
     if (hasBeast && (isOpening || shotType.includes('reveal') || shotType.includes('entrance') || isClimax)) {
       try {
-        beastFields = this.beastBridge.generateFields(shot, context);
+        beastFields = this._getBeastBridge().generateFields(shot, context);
         activatedSubsystems.push('BeastEntranceAgentBridge');
       } catch (e) {}
     }
 
-    // 5. 神兽开场白（仅 opening）
+    // 5. 神兽开场白（仅Nirath模式且有beast的opening）
     let openingFields = {};
     if (hasBeast && isOpening) {
       try {
-        const openingLine = await this.openingLineAgent.generate(
+        const openingLine = await this._getOpeningLineAgent().generate(
           {
-            name: context.beastName || shot.beastName || '神兽',
+            name: context.beastName || shot.beastName || '',
             coreTrait: context.beastTrait || '',
             habitat: context.habitat || shot.scene || '',
             age: context.beastAge || ''
@@ -109,13 +130,13 @@ class SubsystemOrchestratorV2 {
       } catch (e) {}
     }
 
-    // 6. 神兽声音签名（仅 opening）
+    // 6. 神兽声音签名（仅Nirath模式且有beast的opening）
     let voiceFields = {};
     if (hasBeast && isOpening) {
       try {
-        const voice = this.voiceEngine.generate(
+        const voice = this._getVoiceEngine().generate(
           context.beastId || shot.beastId,
-          context.beastName || shot.beastName || '神兽',
+          context.beastName || shot.beastName || '',
           { episodeHook: context.episodeHook || '' }
         );
 
@@ -138,72 +159,49 @@ class SubsystemOrchestratorV2 {
 
     return {
       ...merged,
-      meta: {
-        activatedSubsystems
+      _meta: {
+        activatedSubsystems,
+        hasBeast,
+        isOpening,
+        isClimax
       }
     };
   }
 
   _buildCharacterField(shot, context) {
-    const chars = context.characters || shot.characters || [];
-    if (Array.isArray(chars)) {
-      return chars.join('，');
+    const chars = [];
+    if (shot.characters && Array.isArray(shot.characters)) {
+      chars.push(...shot.characters);
     }
-    return String(chars || '');
+    if (context.characters && Array.isArray(context.characters)) {
+      chars.push(...context.characters);
+    }
+    return chars.join('，') || '';
   }
 
   _buildSceneField(shot, context) {
-    return shot.scene || shot.sceneName || shot.visualPrompt || context.habitat || '';
+    return shot.scene || context.scene || shot.description || '';
   }
 
-  _buildMoodField(shot, context, flags = {}) {
-    if (shot.emotionPhase || shot.mood) return shot.emotionPhase || shot.mood;
-    if (flags.isOpening) return '神秘、吸引、建立悬念';
-    if (flags.isClimax) return '震撼、紧张、情绪峰值';
-    if (flags.isClosing) return '温暖、释然、余韵';
-    return '沉浸、电影感';
+  _buildMoodField(shot, context, flags) {
+    if (flags.isOpening) return 'establishing';
+    if (flags.isClimax) return 'climax';
+    if (flags.isClosing) return 'resolution';
+    return shot.emotionPhase || context.emotionPhase || 'neutral';
   }
 
-  _mergeFieldObjects(...objs) {
-    const result = {
-      CHARACTER: '',
-      ACTION: '',
-      SCENE: '',
-      MOOD: '',
-      CAMERA: '',
-      LIGHTING: '',
-      NEGATIVE: '',
-      AUDIO: '',
-      RENDER: '',
-      DIRECTOR: ''
-    };
-
-    for (const obj of objs) {
+  _mergeFieldObjects(...objects) {
+    const result = {};
+    for (const obj of objects) {
       if (!obj) continue;
-
-      for (const key of Object.keys(result)) {
-        const value = this._clean(obj[key]);
-        if (!value) continue;
-
-        if (!result[key]) {
+      for (const [key, value] of Object.entries(obj)) {
+        if (key === '_meta') continue;
+        if (value && value.toString().trim()) {
           result[key] = value;
-        } else if (['CAMERA', 'LIGHTING', 'AUDIO', 'DIRECTOR', 'MOOD'].includes(key)) {
-          if (!result[key].includes(value)) {
-            result[key] += `；${value}`;
-          }
-        } else if (key === 'ACTION') {
-          if (!result[key].includes(value)) {
-            result[key] += `；${value}`;
-          }
         }
       }
     }
-
     return result;
-  }
-
-  _clean(text) {
-    return String(text || '').replace(/\s+/g, ' ').trim();
   }
 }
 
