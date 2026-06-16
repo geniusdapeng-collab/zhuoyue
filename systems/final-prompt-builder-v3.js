@@ -111,6 +111,7 @@ class FinalPromptBuilderV3 {
 
     return {
       shotId,
+      success: true, // v6.6.9.4-patch26: 添加success字段，供调用方判断
       prompt: normalized.prompt,
       fields: normalized.fields,
       validation,
