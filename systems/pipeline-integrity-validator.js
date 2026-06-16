@@ -484,34 +484,61 @@ Prompt: ${item.prompt?.slice(0, 300) || '空'}
           return;
         }
 
+      // 检查1.5：检测v4结构（timeline + segments）
+      const hasV4Structure = movement.timeline && Array.isArray(movement.timeline.segments) && movement.timeline.segments.length > 0;
+      
+      // 如果是v4结构，从timeline提取增强的description
+      if (hasV4Structure && movement.timeline) {
+        const strategy = movement.timeline.strategy || '';
+        const firstSegment = movement.timeline.segments[0];
+        const firstMovement = firstSegment?.movement || '';
+        const firstReason = firstSegment?.reason || '';
+        
+        // 拼接增强description（策略名 + 第一段运镜 + 理由）
+        const enhancedDesc = `${strategy}：${firstMovement}${firstReason ? '（' + firstReason + '）' : ''}`;
+        
+        // 临时替换description用于长度检查（不修改原对象）
+        movement._enhancedDescription = enhancedDesc;
+      }
+
       // 检查2：description是否存在且非空（关键！）
       // 🔥 v6.1-fix: 片头S00由opening-system-v3.js独立生成，跳过运镜检查
       if (cam.shotId === 'S00') {
         return; // 片头镜头独立生成，不检查运镜
       }
       
-      if (!movement.description || movement.description.trim() === '') {
+      // v6.6.7-fix: 使用增强description（v4结构）或原description
+      const effectiveDesc = movement._enhancedDescription || movement.description;
+      
+      if (!effectiveDesc || effectiveDesc.trim() === '') {
         check.passed = false;
         check.details.push(`${cam.shotId || idx}: description为空或缺失`);
         this.errors.push(`STAGE-9: ${cam.shotId || '镜头' + idx}运镜description为空——运镜未真正生效！`);
       }
 
         // 检查3：description长度（应该丰富，不是简单单词）
-        if (movement.description && movement.description.length < 50) {
+        // v6.6.7-fix: 对v4结构放宽到20字符（策略名+第一段描述），非v4保持50字符
+        const minLength = hasV4Structure ? 20 : 50;
+        if (effectiveDesc && effectiveDesc.length < minLength) {
           check.passed = false;
-          check.details.push(`${cam.shotId || idx}: description仅${movement.description.length}字符，过于简单`);
-          this.warnings.push(`STAGE-9: ${cam.shotId || '镜头' + idx}运镜描述过短(${movement.description.length}字符)，可能未正确生成`);
+          check.details.push(`${cam.shotId || idx}: description仅${effectiveDesc.length}字符，过于简单`);
+          this.warnings.push(`STAGE-9: ${cam.shotId || '镜头' + idx}运镜描述过短(${effectiveDesc.length}字符)，可能未正确生成`);
         }
 
-      // 检查4：关键字段完整性（适配v1/v2两种结构）
+      // 检查4：关键字段完整性（适配v1/v2/v4三种结构）
+      // v6.6.7-fix: 添加v4结构识别
       const v1Fields = ['shotSize', 'position', 'movement', 'speed', 'timeRange'];
       const v2Fields = ['scene', 'physicsDriver', 'primaryMovement', 'speed', 'shotSize'];
       const hasV1Structure = v1Fields.every(f => !!movement[f]);
       const hasV2Structure = v2Fields.every(f => !!movement[f]);
       
-      if (!hasV1Structure && !hasV2Structure) {
+      // v4结构：有timeline对象且segments数组非空
+      const v4Fields = ['timeline'];
+      const hasV4Fields = v4Fields.every(f => !!movement[f]) && hasV4Structure;
+      
+      if (!hasV1Structure && !hasV2Structure && !hasV4Fields) {
         check.passed = false;
-        check.details.push(`${cam.shotId || idx}: 运镜对象缺少关键字段（非v1也非v2结构）`);
+        check.details.push(`${cam.shotId || idx}: 运镜对象缺少关键字段（非v1/v2/v4结构）`);
         this.warnings.push(`STAGE-9: ${cam.shotId || '镜头' + idx}运镜结构异常`);
       }
       

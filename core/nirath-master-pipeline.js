@@ -4528,14 +4528,29 @@ ${isNirath
             );
             
             if (v4Result.timeline) {
+              // v6.6.7-fix: 使用完整的v4 description（策略名+第一段描述+段数）
+              const strategy = v4Result.timeline.strategy || 'LLM驱动个性化运镜';
+              const firstSeg = v4Result.timeline.segments?.[0];
+              const lastSeg = v4Result.timeline.segments?.[v4Result.timeline.segments.length - 1];
+              const segmentCount = v4Result.timeline.segmentCount || v4Result.timeline.segments?.length || 0;
+              
+              // 构建详细description：策略名 + 起始景别 + 结束景别 + 段数 + 第一段运镜
+              const detailedDesc = `${strategy}：从${firstSeg?.shotSize || 'medium'}逐步过渡到${lastSeg?.shotSize || 'close_up'}，共${segmentCount}段精细运镜。首段：${firstSeg?.movement || '渐进式'}。${v4Result.timeline.reasoning ? '设计意图：' + v4Result.timeline.reasoning.substring(0, 80) : ''}`;
+              
               movement = {
                 timeline: v4Result.timeline,
                 v4Enabled: true,
                 v4Analysis: v4Result.analysis,
                 v4Continuity: v4Result.continuityCheck,
-                description: v4Result.timeline.strategy || 'LLM驱动个性化运镜'
+                description: detailedDesc,
+                // v6.6.7-fix: 添加v1兼容字段，让下游能正确消费
+                shotSize: firstSeg?.shotSize || 'medium',
+                position: 'center',
+                movement: firstSeg?.movement || '渐进式推进',
+                speed: firstSeg?.speed || 'slow',
+                timeRange: firstSeg?.timeRange || [0, shot.duration || 5]
               };
-              this.log('STAGE-9', `  🎬 v4运镜: ${shot.id} | ${v4Result.timeline.strategy} | ${v4Result.timeline.segmentCount}段`);
+              this.log('STAGE-9', `  🎬 v4运镜: ${shot.id} | ${strategy} | ${segmentCount}段`);
               
               // 更新previousShot用于连续性检查
               previousShot = { timeline: v4Result.timeline };
