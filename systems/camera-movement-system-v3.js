@@ -675,7 +675,7 @@ class CameraMovementSystemV3 extends CameraMovementSystem {
    * @returns {Array} 增强后的shots
    */
   injectAdventureCinematography(shots, options = {}) {
-    const { AdventureCinematographySystem } = require('./adventure-cinematography-system');
+    const { AdventureCinematographySystem } = require('./nirath/adventure-cinematography-system');
     const adventureSystem = new AdventureCinematographySystem({
       intensity: options.intensity || 0.7,
       protagonistId: options.protagonistId || 'xiaoG',
@@ -695,7 +695,7 @@ class CameraMovementSystemV3 extends CameraMovementSystem {
    * v3.1：为单镜头生成冒险感运镜（便捷方法）
    */
   generateAdventureCamera(shot, index, totalShots, options = {}) {
-    const { AdventureCinematographySystem } = require('./adventure-cinematography-system');
+    const { AdventureCinematographySystem } = require('./nirath/adventure-cinematography-system');
     const adventureSystem = new AdventureCinematographySystem(options);
     return adventureSystem.generateAdventureCamera(shot, index, totalShots, options);
   }

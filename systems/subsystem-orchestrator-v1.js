@@ -6,11 +6,11 @@
  * 3. 统一返回标准字段对象，不直接拼大字符串
  */
 
-const { AdventureCinematographySystem } = require('./adventure-cinematography-system');
+const { AdventureCinematographySystem } = require('./nirath/adventure-cinematography-system');
 const { AmbientSoundDesigner } = require('./ambient-sound-designer');
-const { generateBeastEntrance } = require('./beast-entrance-agent');
+const { generateBeastEntrance } = require('./nirath/beast-entrance-agent');
 const { BeastOpeningLineAgent } = require('./nirath/beast-opening-line-agent');
-const { BeastVoiceSignatureEngine } = require('./beast-voice-signature-engine');
+const { BeastVoiceSignatureEngine } = require('./nirath/beast-voice-signature-engine');
 const { GlobalNegativePromptInjector } = require('./global-negative-prompts');
 
 class SubsystemOrchestrator {

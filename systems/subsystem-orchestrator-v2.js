@@ -1,16 +1,23 @@
-const { AdventureCinematographySystem } = require('./adventure-cinematography-system');
 const { AmbientSoundDesignerBridge } = require('./ambient-sound-designer.bridge');
 const { CameraMovementSystemV3Bridge } = require('./camera-movement-system-v3.bridge');
 
 class SubsystemOrchestratorV2 {
   constructor(options = {}) {
     this.options = options;
-    this.adventure = new AdventureCinematographySystem(options.adventure || {});
+    this.adventure = null; // v6.6.9.4-patch19: 懒加载，避免generic模式加载Nirath模块
     this.soundBridge = new AmbientSoundDesignerBridge(options.sound || {});
     this.cameraBridge = new CameraMovementSystemV3Bridge(options.camera || {});
     this.beastBridge = null; // 懒加载
     this.openingLineAgent = null; // 懒加载
     this.voiceEngine = null; // 懒加载
+  }
+
+  _getAdventureSystem() {
+    if (!this.adventure) {
+      const { AdventureCinematographySystem } = require('./nirath/adventure-cinematography-system');
+      this.adventure = new AdventureCinematographySystem(this.options.adventure || {});
+    }
+    return this.adventure;
   }
 
   _getBeastBridge() {
@@ -31,7 +38,7 @@ class SubsystemOrchestratorV2 {
 
   _getVoiceEngine() {
     if (!this.voiceEngine) {
-      const { BeastVoiceSignatureEngine } = require('./beast-voice-signature-engine');
+      const { BeastVoiceSignatureEngine } = require('./nirath/beast-voice-signature-engine');
       this.voiceEngine = new BeastVoiceSignatureEngine();
     }
     return this.voiceEngine;
