@@ -61,7 +61,8 @@ class SubsystemOrchestratorV2 {
       NEGATIVE: '',
       AUDIO: '',
       RENDER: shot.renderStyle || '电影级、超写实、细节丰富',
-      DIRECTOR: ''
+      DIRECTOR: '',
+      DIALOGUE: shot.dialogue || shot.narration || '' // v6.6.9.4-patch24: 添加DIALOGUE字段支持
     };
 
     const activatedSubsystems = [];
