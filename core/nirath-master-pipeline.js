@@ -550,7 +550,7 @@ class NirathMasterPipeline {
         // 保留用户显式指定的字段
         if (input.videoType) pipelineInput.videoType = input.videoType;
         if (input.title) pipelineInput.title = input.title;
-        if (input.targetDuration) pipelineInput.targetDuration = input.targetDuration;
+        if (input.targetDuration || input.duration) pipelineInput.targetDuration = input.targetDuration || input.duration;
         if (input.creativeIntensity !== undefined) pipelineInput.creativeIntensity = input.creativeIntensity;
         if (input.style) pipelineInput.style = input.style;
         if (input.characters) pipelineInput.characters = input.characters;

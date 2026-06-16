@@ -1092,11 +1092,16 @@ function extractCameraKeywords(cameraPlans) {
 // ===== 主入口 =====
 function generateOpeningV3(config) {
   // v6.5.64-fix: Generic模式检测，非Nirath视频生成干净专业片头
-  const isNirath = config.seriesTitle?.includes('山海经') ||
-                   config.episodeTitle?.includes('山海经') ||
-                   config.featuredBeastId ||
-                   config.protagonistId === 'xiaoG' ||
-                   (config.mood && ['mysterious', 'epic', 'tender', 'tense'].includes(config.mood));
+  // 🔥 v6.6.7-fix: 修复误判逻辑——只有明确包含山海经/Nirath特征才走Nirath路径
+  const hasShanhaijingKeyword = config.seriesTitle?.includes('山海经') ||
+                                config.episodeTitle?.includes('山海经');
+  const hasNirathProtagonist = config.protagonistId === 'xiaoG' && !config.seriesTitle?.includes('科普');
+  const hasNirathBeast = config.featuredBeastId && config.featuredBeastId !== 'none' && config.featuredBeastId !== '';
+  const hasNirathMood = config.mood && ['mysterious', 'epic', 'tender', 'tense'].includes(config.mood) &&
+                        !config.seriesTitle?.includes('科普') && !config.episodeTitle?.includes('科普');
+
+  // 明确Nirath模式：必须有山海经关键词 或 (小G主角 + 有异兽 + Nirath情绪)
+  const isNirath = hasShanhaijingKeyword || (hasNirathProtagonist && hasNirathBeast && hasNirathMood);
 
   if (!isNirath) {
     console.log('🎬 [opening-system-v3] Generic模式检测：生成非Nirath片头');
