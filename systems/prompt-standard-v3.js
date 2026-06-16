@@ -29,7 +29,7 @@ const FIELD_DEFINITIONS = {
       /【视觉】/i,
       /【主体】/i,
       /【角色约束】/i,
-      /(?:boy|girl|man|woman|child|character|角色|人物|小G|白泽|饕餮|香香|小卓)/i,
+      /(?:boy|girl|man|woman|child|character|角色|人物|香香|小卓)/i,
       /\d+\s*(?:year-old|岁)/i
     ]
   },
@@ -58,13 +58,16 @@ const FIELD_DEFINITIONS = {
     blockMapping: [
       '【ACTION】',
       '【动态】',
-      '【异兽动作】',
+      // v6.6.9.4-patch9: 移除异兽专属标签，保留通用动作标签
+    // '【异兽动作】',
+    '【动作】',
       '【嘴部动作】'
     ],
     patterns: [
       /【ACTION】/i,
       /【动态】/i,
-      /【异兽动作】/i,
+      // /【异兽动作】/i,
+      /【动作】/i,
       /【嘴部动作】/i,
       /(?:walk|run|look|turn|approach|enter|grab|fight|move|step|动作|走|跑|看|冲|扑|转身|靠近|伸手)/i
     ]
