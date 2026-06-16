@@ -2261,7 +2261,7 @@ class NirathMasterPipeline {
     parts.push(`- scenes 数量必须与输入场景数完全一致`);
     parts.push(`- scenes 中每项必须包含 id, scene, dialogue, narration, characters, mouthAction, emotionPhase`);
     parts.push(`- 每个 id 必须与输入一致`);
-    parts.push(`- characters 必须是角色ID数组,如 ["chen-nurse", "xiaoG", "coach-li"]`);
+    parts.push(`- characters 必须是角色ID数组,如 ["chen-zhuo", "presenter", "doctor-li"]`);
 
     parts.push(`
 【输出示例】`);
@@ -2272,7 +2272,7 @@ class NirathMasterPipeline {
       "scene": "开场介绍",
       "dialogue": "大家好,今天我们来聊一个需要高度重视的问题。",
       "narration": "本集主题为横纹肌溶解。",
-      "characters": ["chen-nurse", "xiaoG", "coach-li"],
+      "characters": ["chen-zhuo", "presenter", "doctor-li"],
       "mouthAction": "speaking_normal",
       "emotionPhase": "curiosity"
     }
@@ -2919,7 +2919,7 @@ ${isNirath
     this.log('STAGE-7', '故事板生成(结构化生成器 + mouthAction字段 + 场景映射)');
 
     // ========== StoryCraft Engine v2.0 集成 ==========
-    // 检查是否启用 StoryCraft(异兽视角叙事模式)
+    // 检查是否启用 StoryCraft(仅Nirath模式：异兽视角叙事模式)
     const storyCraftEnabled = input?.storyCraftVersion === 'v2.0' || input?.storyCraftVersion === 'v1.0' || input?.enableStoryCraft === true;
     const beastProfile = input?.beastProfile || input?.beast || input?.core?.beast || {};
 
