@@ -37,15 +37,9 @@ class ComplianceChecker {
     
     // Nirath场景白名单
     this.nirathScenes = [
-      '永夜裂谷', '青丘灵原', '钟山之巅', '银色湖泊', '建木林',
-      '昆仑虚', '幽都暗域', '流沙瀚海', '归墟之海', '不周山脉'
-    ];
-    
-    // 角色白名单
-    this.validCharacters = [
-      'xiaoG', '暖暖', '白泽', '陈女士', '教练',
-      'zhu-long', 'qing-qiu', 'phoenix', 'qilin'
-    ];
+    // v6.6.9.4-patch16: 场景和角色白名单改为动态配置
+    this.validScenes = options.validScenes || [];
+    this.validCharacters = options.validCharacters || [];
   }
 
   /**

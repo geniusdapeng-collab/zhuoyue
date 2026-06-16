@@ -143,12 +143,6 @@ class DirectorStyleLibrary {
         tertiary: 'villeneuve',
         tags: ['bioluminescent_ecosystem', 'natural_epic_landscape', 'monumental_scale']
       },
-      'creature_first_encounter': { // 异兽首次登场
-        primary: 'spielberg',
-        secondary: 'villeneuve',
-        tertiary: 'deltoro',
-        tags: ['creature_reveal_ritual', 'slow_reveal', 'creature_aesthetic']
-      },
       'epic_landscape': {         // 史诗地貌/全景
         primary: 'villeneuve',
         secondary: 'jackson',

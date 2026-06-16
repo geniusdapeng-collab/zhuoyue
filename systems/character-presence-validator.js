@@ -14,19 +14,8 @@
 class CharacterPresenceValidator {
   constructor(options = {}) {
     // 角色名映射表（ narration 中的名称 -> characters ID）
-    this.characterNameMap = {
-      '小G': 'xiaoG',
-      '小纪': 'xiaoG',
-      '主角': 'xiaoG',
-      '少年': 'xiaoG',
-      '饕餮': 'tao-tie',
-      'taotie': 'tao-tie',
-      '烛龙': 'zhu-long',
-      'zhulong': 'zhu-long',
-      '九尾': 'jiu-wei',
-      '九尾狐': 'jiu-wei',
-      'jiuweihu': 'jiu-wei',
-      '暖暖': 'nuan-nuan',
+    // v6.6.9.4-patch16: 移除山海经硬编码角色，改为动态配置
+    this.characterNameMap = options.characterNameMap || {};
       '帝江': 'di-jiang'
     };
     

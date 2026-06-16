@@ -295,9 +295,7 @@ class CharacterFeatureExtractor {
   inferFromTheme(themeText, roleType) {
     // 基于主题词推断角色类型和基本特征
     const inferences = {
-      // 山海经相关
-      '山海': { species: '上古异兽', style: '东方奇幻', texture: ['神秘', '古老'] },
-      '异兽': { species: '奇幻生物', style: '神话风格', texture: ['超现实'] },
+      // v6.6.9.4-patch16: 移除山海经硬编码主题
       // 科幻相关
       '科幻': { species: '未知生物', style: '科幻写实', texture: ['未来感', '科技感'] },
       '未来': { species: '未来生物', style: '科幻风格', texture: ['机械感', '流线型'] },
