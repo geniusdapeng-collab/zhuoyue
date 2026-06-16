@@ -763,7 +763,7 @@ function combineActs(act1, act2, act3, config) {
                                             config.featuredBeastId === 'tao-wu' ? '梼杌' :
                                             config.featuredBeastId);
     
-    // 【v6.2-patch54】使用开场白Agent生成震撼第一句
+    // v6.2-patch54】使用开场白Agent生成震撼第一句
     const openingAgent = new BeastOpeningLineAgent();
     const beastProfile = loadCharacterCard(config.featuredBeastId) || {
       name: beastName,

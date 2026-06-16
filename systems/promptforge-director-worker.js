@@ -61,7 +61,7 @@ function _writeFallback(extra = {}) {
 }
 
 // 构建单次重写Prompt - 策略：只补充细节，不重新写，减少推理量
-function buildRewritePrompt(shots, config) {
+function buildRewritePrompt(shots, config, mode = 'nirath') {
   const beastId = config?.beastId || 'bai-ze';
   const theme = config?.theme || '心灵碰撞';
   
@@ -73,7 +73,9 @@ function buildRewritePrompt(shots, config) {
 时长: ${s.duration || 15}秒
 `).join('\n');
 
-  return `你是顶级AI视频Prompt工程师，擅长在现有Prompt基础上补充细节。
+  // v6.6.9: 根据模式构建不同的Prompt
+  if (mode === 'nirath') {
+    return `你是顶级AI视频Prompt工程师，擅长在现有Prompt基础上补充细节。
 
 项目: 山海经：${beastId}·万物之眼 EP01
 主题: ${theme}
@@ -94,6 +96,29 @@ ${shotTexts}
 3. 保持中文纪录片质感，直接追加到原Prompt后面
 
 直接输出追加后的完整Prompt，不要解释，不要JSON。`;
+  } else {
+    // Generic模式：通用纪录片/科普风格
+    return `你是顶级AI视频Prompt工程师，擅长在现有Prompt基础上补充细节。
+
+项目: ${theme}
+
+【任务】
+以下镜头Prompt已有基础内容，需要补充细节使其更丰富。请直接在每个原始Prompt后面追加200-300字的细节描写。
+
+${shotTexts}
+
+【补充要求】
+1. 在原始Prompt末尾追加以下内容（不要删除原内容）：
+   - 环境质感：地面材质、建筑细节、大气效果
+   - 光影变化：自然光照效果、色温对比、阴影层次
+   - 角色微表情：眼神、呼吸、肌肉紧绷、发丝飘动
+   - 真实世界特征：符合物理规律的重力、真实材质纹理、自然植被
+   - 环境音效暗示：环境声、背景噪音、空间混响
+2. 追加后总长度应达到889-988字符
+3. 保持中文纪录片质感，直接追加到原Prompt后面
+
+直接输出追加后的完整Prompt，不要解释，不要JSON。`;
+  }
 }
 
 // 运行批次模式（3+3，减少LLM调用次数）
@@ -121,7 +146,7 @@ async function run() {
       const batch = batches[batchIdx];
       console.log(`[WORKER] 📦 批次 ${batchIdx+1}/${batches.length}: ${batch.map(s=>s.id).join(',')}`);
       
-      const rewritePrompt = buildRewritePrompt(batch, projectConfig);
+      const rewritePrompt = buildRewritePrompt(batch, projectConfig, input.mode || 'nirath');
       console.log(`[WORKER] 📝 批次Prompt长度:`, rewritePrompt.length, '字符');
       
       console.log(`[WORKER] 🤖 批次LLM调用...`);

@@ -342,10 +342,15 @@ function getMaterialConstraint(materialType, variant, titleText = '') {
  * @param {string} titleText - 标题文本
  * @returns {string} 完整材质描述段落
  */
-function generateNirathMaterialSection(materials, titleText = '') {
+function generateNirathMaterialSection(materials, titleText = '', isNirath = true) {
   const baseDescriptions = materials.map(m =>
     getMaterialConstraint(m.type, m.variant, titleText)
   ).join('\n');
+  
+  // v6.6.9: Generic模式不注入Nirath环境介质
+  if (!isNirath) {
+    return baseDescriptions;
+  }
   
   // v3.0新增：自动追加Nirath环境介质材质
   const atmosphericMedium = `【Nirath大气介质】0.82G低重力，空气折射率1.00045，磁悬浮水滴，1200个/cm³以太孢子漂浮，30Hz磁场共鸣可感知为低频震动。双恒星风携带带电粒子，与磁场作用产生无处不在的淡蓝紫环境光晕。`;

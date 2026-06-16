@@ -124,6 +124,14 @@ class NirathSceneMapper {
    * @returns {string} 场景名（中文）
    */
   map(narration = '', type = 'generic', options = {}) {
+    // v6.6.9: Generic模式跳过Nirath场景映射，返回原始场景描述
+    const isNirath = options.isNirath !== false; // 默认Nirath模式
+    
+    if (!isNirath) {
+      // Generic模式：返回简洁的通用场景描述
+      return this.mapGenericScene(narration, type, options);
+    }
+    
     // v6.2-fix: 第一优先级 - 栖息地匹配(40神兽栖息地 → 圣经10场景)
     const beastId = options.beastId || '';
     const sceneDescription = options.sceneDescription || '';
@@ -240,6 +248,47 @@ class NirathSceneMapper {
     
     // 回退：使用fallback本身作为生成目标
     return null; // 返回null表示不需要生成新场景（fallback已在库中）
+  }
+  
+  /**
+   * v6.6.9: Generic模式场景映射 - 返回简洁通用场景描述
+   */
+  mapGenericScene(narration = '', type = 'generic', options = {}) {
+    const sceneDescription = options.sceneDescription || '';
+    const fullText = `${sceneDescription} ${narration}`.trim();
+    
+    // Generic类型默认场景
+    const genericDefaults = {
+      'opening': '明亮演播室',
+      'interview': '访谈场景',
+      'presentation': '演示场景',
+      'generic': '通用场景',
+      'closing': '结尾场景'
+    };
+    
+    // 如果提供了场景描述，直接返回
+    if (sceneDescription && sceneDescription.length > 0) {
+      return sceneDescription;
+    }
+    
+    // 从narration中提取地点关键词
+    const locationPatterns = [
+      /在([\u4e00-\u9fa5]{2,6})(?:上|中|里|内|边|旁|侧|下|前|后)/,
+      /来到([\u4e00-\u9fa5]{2,6})(?:前|边|上|中|里)/,
+      /前往([\u4e00-\u9fa5]{2,6})(?:方向|处|上|中)/,
+      /站在([\u4e00-\u9fa5]{2,6})(?:上|中|里|边)/,
+      /([\u4e00-\u9fa5]{2,6})(?:之上|之中|旁边|前面|背后|远处|近处)/
+    ];
+    
+    for (const pattern of locationPatterns) {
+      const match = fullText.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    
+    // 回退到类型默认
+    return genericDefaults[type] || '通用场景';
   }
   
   /**

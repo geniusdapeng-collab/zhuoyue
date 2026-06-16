@@ -4,6 +4,50 @@
  * 不针对单个case，通用服务所有Nirath系列片头
  */
 
+const GENERIC_CAMERA_MOVEMENTS = {
+  // ===== 通用运镜（5种） =====
+  fade_in: {
+    name: '淡入',
+    description: '镜头从柔和渐变中自然亮起，画面干净明亮',
+    speedModifiers: ['silky', 'smooth'],
+    seedanceKeyword: 'fade in from soft gradient, gentle reveal',
+    typicalDuration: '2-3s',
+    emotion: '温和/开场/引入'
+  },
+  slow_push: {
+    name: '缓推',
+    description: '缓慢推进镜头，中景到特写，带浅景深效果',
+    speedModifiers: ['silky', 'smooth'],
+    seedanceKeyword: 'slow push in, shallow depth of field',
+    typicalDuration: '3-4s',
+    emotion: '聚焦/亲密/揭示'
+  },
+  gentle_pan: {
+    name: '平稳横移',
+    description: '平稳横移镜头，展示环境细节',
+    speedModifiers: ['silky', 'smooth'],
+    seedanceKeyword: 'gentle pan, smooth horizontal movement',
+    typicalDuration: '2-4s',
+    emotion: '探索/展示/流动'
+  },
+  tilt_up: {
+    name: '上摇',
+    description: '镜头缓缓上摇，展示空间纵深感',
+    speedModifiers: ['silky', 'smooth'],
+    seedanceKeyword: 'gentle tilt up, vertical reveal',
+    typicalDuration: '2-3s',
+    emotion: '崇高/展开/仰望'
+  },
+  hold: {
+    name: '定格',
+    description: '稳定镜头，画面定格，突出主体',
+    speedModifiers: ['static'],
+    seedanceKeyword: 'static hold, stable frame',
+    typicalDuration: '2-4s',
+    emotion: '稳定/强调/定格'
+  }
+};
+
 const NIRATH_CAMERA_MOVEMENTS = {
   // ===== 基础运镜（8种） =====
   dolly_in: {
@@ -221,8 +265,11 @@ function generateCameraMovementDescription(movements, options = {}) {
     return '';
   }
 
+  const isNirath = options.isNirath !== false; // 默认Nirath模式
+  const pool = isNirath ? NIRATH_CAMERA_MOVEMENTS : GENERIC_CAMERA_MOVEMENTS;
+
   const descriptions = movements.map(id => {
-    const movement = NIRATH_CAMERA_MOVEMENTS[id];
+    const movement = pool[id] || NIRATH_CAMERA_MOVEMENTS[id] || GENERIC_CAMERA_MOVEMENTS[id];
     if (!movement) return '';
     
     // Nirath专属运镜优先使用完整描述
@@ -252,10 +299,18 @@ function generateCameraMovementDescription(movements, options = {}) {
  * @returns {Object} - 完整运镜方案
  */
 function generateMultiTechniqueShot(shot, duration = 8) {
-  const { type = 'opening', intensity = 'medium', hasTitle = false } = shot;
+  const { type = 'opening', intensity = 'medium', hasTitle = false, isNirath = true } = shot;
   
-  // 根据镜头类型推荐运镜组合
-  const movementMap = {
+  // v6.6.9: Generic模式使用通用运镜组合
+  const genericMovementMap = {
+    opening: ['fade_in', 'slow_push', 'gentle_pan'],
+    title_formation: ['fade_in', 'slow_push', 'hold'],
+    character_reveal: ['gentle_pan', 'slow_push', 'hold'],
+    climax: ['whip', 'slow_push', 'tilt_up'],
+    ending: ['slow_push', 'gentle_pan', 'hold']
+  };
+  
+  const nirathMovementMap = {
     opening: ['dolly_in', 'gravity_drift', 'dual_star_sweep'],
     title_formation: ['ferrofluid_trail', 'orbit', 'magnetic_line_follow'],
     character_reveal: ['orbit', 'dolly_in', 'aether_spore_float'],
@@ -263,14 +318,17 @@ function generateMultiTechniqueShot(shot, duration = 8) {
     ending: ['dolly_out', 'gravity_drift', 'dual_star_sweep']
   };
   
-  const selectedMovements = movementMap[type] || ['dolly_in'];
+  const movementMap = isNirath ? nirathMovementMap : genericMovementMap;
+  const cameraPool = isNirath ? NIRATH_CAMERA_MOVEMENTS : GENERIC_CAMERA_MOVEMENTS;
+  
+  const selectedMovements = movementMap[type] || ['fade_in'];
   
   // 分配时间轴
   const timeline = [];
   const segmentDuration = duration / selectedMovements.length;
   
   selectedMovements.forEach((movementId, index) => {
-    const movement = NIRATH_CAMERA_MOVEMENTS[movementId];
+    const movement = cameraPool[movementId] || NIRATH_CAMERA_MOVEMENTS[movementId] || GENERIC_CAMERA_MOVEMENTS[movementId];
     const startTime = (index * segmentDuration).toFixed(1);
     const endTime = ((index + 1) * segmentDuration).toFixed(1);
     
@@ -280,23 +338,21 @@ function generateMultiTechniqueShot(shot, duration = 8) {
       movementId: movementId,
       description: movement.seedanceKeyword,
       emotion: movement.emotion,
-      lighting: index === 0 ? 'magnetospherePulse' : (index === selectedMovements.length - 1 ? 'ferrofluidGlowRamp' : null),
-      audio: movement.nirathSignature ? 'magneticResonance' : 'sporeWhisper'
+      lighting: index === 0 ? 'softNatural' : (index === selectedMovements.length - 1 ? 'warmHighlight' : null),
+      audio: 'ambient'
     });
   });
   
   // 生成精简Prompt片段（Seedance空间限制）
-  const promptFragment = generateCameraMovementDescription(selectedMovements, { speed: 'silky' });
+  const promptFragment = generateCameraMovementDescription(selectedMovements, { speed: 'silky', isNirath });
   
   return {
     type,
     duration,
     timeline,
     promptFragment,
-    lighting: hasTitle ? ['dualStarColorShift', 'ferrofluidGlowRamp'] : ['magnetospherePulse'],
-    audio: selectedMovements.some(m => NIRATH_CAMERA_MOVEMENTS[m]?.nirathSignature) 
-      ? ['magneticResonance', 'sporeWhisper'] 
-      : ['sporeWhisper']
+    lighting: hasTitle ? ['softNatural', 'warmHighlight'] : ['softNatural'],
+    audio: ['ambient']
   };
 }
 
@@ -307,21 +363,23 @@ function generateMultiTechniqueShot(shot, duration = 8) {
  * @param {Array} movements - 运镜ID数组
  * @returns {string} - 适配空间的运镜描述
  */
-function compressCameraForPromptSpace(remainingChars, movements) {
+function compressCameraForPromptSpace(remainingChars, movements, isNirath = true) {
+  const cameraPool = isNirath ? NIRATH_CAMERA_MOVEMENTS : GENERIC_CAMERA_MOVEMENTS;
+  
   if (remainingChars > 80) {
     // 空间充裕：完整描述
-    return generateCameraMovementDescription(movements);
+    return generateCameraMovementDescription(movements, { isNirath });
   } else if (remainingChars > 40) {
     // 空间有限：精简描述
     const keywords = movements.map(id => {
-      const m = NIRATH_CAMERA_MOVEMENTS[id];
+      const m = cameraPool[id];
       return m ? m.seedanceKeyword.split(',')[0] : '';
     }).filter(Boolean);
     return keywords.join(', ');
   } else if (remainingChars > 20) {
     // 空间紧张：极简锚定词
     const keywords = movements.map(id => {
-      const m = NIRATH_CAMERA_MOVEMENTS[id];
+      const m = cameraPool[id];
       if (!m) return '';
       // 提取最核心的词
       if (id.includes('orbit')) return 'orbiting';

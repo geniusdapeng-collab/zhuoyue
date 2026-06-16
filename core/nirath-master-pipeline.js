@@ -958,7 +958,8 @@ class NirathMasterPipeline {
           // 准备输入数据
           const inputData = {
             rawReport: rawReport,
-            projectConfig: projectConfig
+            projectConfig: projectConfig,
+            mode: this.mode || 'nirath' // v6.6.9: 传递模式信息
           };
 
           fss.writeFileSync(inputFile, JSON.stringify(inputData));
@@ -1733,9 +1734,11 @@ class NirathMasterPipeline {
 
     // 从shot中提取角色
     if (shot.characters && shot.characters.length > 0) {
-      parts.push(`${shot.characters.join('、')}在Nirath异世界场景中`);
+      const isNirath = this.mode === 'nirath';
+      parts.push(`${shot.characters.join('、')}在${isNirath ? 'Nirath异世界场景中' : '场景中'}`);
     } else {
-      parts.push('Nirath异世界场景');
+      const isNirath = this.mode === 'nirath';
+      parts.push(isNirath ? 'Nirath异世界场景' : '场景');
     }
 
     // 从analysis中提取场景特征
@@ -1747,7 +1750,7 @@ class NirathMasterPipeline {
     // 根据镜头类型添加默认描述
     const typeDesc = {
       'opening': '开场 establishing shot, 展现壮阔异世界全景',
-      'environment': '环境展示, 突出Nirath独特生态',
+      'environment': '环境展示, 突出场景独特氛围',
       'discovery': '探索发现, 主角与未知事物相遇',
       'reveal': '揭示真相, 关键信息展现',
       'interaction': '角色互动, 情感交流瞬间',
@@ -1794,6 +1797,12 @@ class NirathMasterPipeline {
         });
         this.log('STAGE-5', `✅ 剧本Agent生成 | 场景数: ${script.scenes?.length || 0}`);
       } else if (input?.storyCraftVersion || input?.enableStoryCraft) {
+        // v6.6.9: Generic模式不使用StoryCraft（Nirath专属模块）
+        if (this.mode !== 'nirath') {
+          this.log('STAGE-5', '⚠️ Generic模式跳过StoryCraft（Nirath专属模块），fallback到LLM');
+          throw new Error('Generic mode does not support StoryCraft');
+        }
+        
         // 使用StoryCraft(与之前相同)
         this.log('STAGE-5', '⚠️ 剧本Agent未配置,自动启用StoryCraft作为默认剧本Agent');
         const { StoryCraftIntegration } = require('../systems/story-craft-engine/story-craft-integration');
@@ -2007,7 +2016,7 @@ class NirathMasterPipeline {
           totalDuration: batch.reduce((sum, s) => sum + (s.duration || 10), 0)
         },
         world: {
-          name: world.name || 'Nirath',
+          name: world.name || '现实世界',
           setting: world.setting || ''
         }
       };
@@ -2204,7 +2213,7 @@ class NirathMasterPipeline {
 
     parts.push(`
 【世界观】`);
-    parts.push(`名称:${world.name || 'Nirath'}`);
+    parts.push(`名称:${world.name || '现实世界'}`);
     parts.push(`设定:${world.setting || '默认世界观'}`);
 
     if (!isNirath) {
@@ -2288,7 +2297,7 @@ class NirathMasterPipeline {
     "totalDuration": 15
   },
   "world": {
-    "name": "${world.name || 'Nirath'}",
+    "name": "${world.name || '现实世界'}",
     "setting": "${world.setting || ''}"
   }
 }`);
@@ -2306,7 +2315,7 @@ class NirathMasterPipeline {
 
     parts.push(`
 【世界观】`);
-    parts.push(`名称:${world.name || 'Nirath'}`);
+    parts.push(`名称:${world.name || '现实世界'}`);
     parts.push(`设定:${world.setting || '默认世界观'}`);
 
     if (!isNirath) {
@@ -4026,7 +4035,7 @@ ${isNirath
         id: 'S00',
         scene: '片头',
         // v6.5.34-fix: 全局禁用narration,片头使用dialogue
-        dialogue: '山海经系列片头',
+        dialogue: this.mode === 'nirath' ? '山海经系列片头' : '系列片头',
         narration: '', // v6.5.34: narration已禁用,置空
         duration: openingResult.duration || 9,
         type: 'opening',
@@ -4079,7 +4088,7 @@ ${isNirath
       seriesTitle: input.seriesTitle || '山海经:异兽志',
       episodeNumber: input.episodeNumber || input.episode || 'EP02',
       featuredBeastId: input.beastId || input.core?.beastId || input.theme || '',
-      protagonistId: 'xiaoG',
+      protagonistId: input.protagonistId || (this.mode === 'nirath' ? 'xiaoG' : 'presenter'),
       duration: input.openingDuration || 9,
       mood: input.mood || 'mysterious',
       // v2.2-fix: 从input.characters中提取角色定妆照数据
@@ -4089,10 +4098,10 @@ ${isNirath
 
     // 尝试从故事板提取异兽信息
     if (storyboard && storyboard.shots) {
-      // v3.0-patch6: 遍历所有shots,找到第一个非xiaoG角色作为异兽
+      // v3.0-patch6: 遍历所有shots,找到第一个非主角角色作为异兽
       for (const shot of storyboard.shots) {
         if (shot.characters && shot.characters.length > 0) {
-          const beastChar = shot.characters.find(c => c !== 'xiaoG');
+          const beastChar = shot.characters.find(c => c !== config.protagonistId);
           if (beastChar) {
             config.featuredBeastId = beastChar;
             break;
@@ -4346,7 +4355,7 @@ ${isNirath
 
       const options = {
         beastProfile: input?.beastProfile || input?.beast || input?.core?.beast || storyboard?.beast || {},
-        protagonistProfile: input?.protagonist || input?.characters?.xiaoG || {}
+        protagonistProfile: input?.protagonist || input?.characters?.[input?.protagonistId || 'xiaoG'] || {}
       };
 
       const report = inspector.inspect(storyboard, options);
@@ -5015,6 +5024,7 @@ ${isNirath
     for (let i = 0; i < storyboard.shots.length; i++) {
       const shot = storyboard.shots[i];
       let gotoFinalSubmit = false; // v6.5.43: 新链路标记
+      let newChainResult = null; // v6.6.9: 新链路结果
       // 🔥 v6.2-patch48-fix: 同时从 stages.camera 和 shot.cameraMovement 读取运镜
       const movement = shot.cameraMovement || camera.find(c => c.shotId === shot.id)?.movement || null;
 
@@ -5141,7 +5151,7 @@ ${isNirath
         // v6.5.34-fix: 全局禁用narration,使用dialogue作为台词
         const narration = shot.dialogue || ''; // 禁用narration,只使用dialogue
 
-        const enrichedScript = scriptParts.join('\n\n') || shot.visualPrompt || 'Nirath异世界场景';
+        const enrichedScript = scriptParts.join('\n\n') || shot.visualPrompt || (this.mode === 'nirath' ? 'Nirath异世界场景' : '真实世界场景');
 
         // ✅ v6.2-patch87-3: 构建精简角色描述(名字+核心特征,30-40字符)
         // v6.5.1-fix: 添加角色ID标准化映射,处理脚本生成阶段与角色系统阶段的ID不一致问题(如 taotie vs tao-tie)
@@ -5226,107 +5236,6 @@ ${isNirath
             }
             this.log('STAGE-11', `  🌍 场景化环境注入: ${shot.id} | 场景:${shot.scene} | +${prompt.length - beforeEnv}字符`);
           }
-        }
-
-        // v6.5.47: 新链路全量切换 - 所有镜头走 FinalPromptBuilderV3(队长确认:全切)
-        const useNewChain = true; // 所有镜头都走新链路
-
-        let newChainResult = null;
-        if (useNewChain && this.modules.finalPromptBuilder) {
-          try {
-            const context = {
-              totalShots: storyboard.shots.length,
-              protagonistName: this.projectConfig.protagonistName || '小G',
-              beastId: this.projectConfig.beastId || '',
-              beastName: this.projectConfig.beastName || '',
-              habitat: this.projectConfig.habitat || shot.scene || '',
-              episodeTheme: this.projectConfig.episodeTheme || '',
-              sceneType: shot.sceneType || 'nature_epic'
-            };
-
-            newChainResult = await this.modules.finalPromptBuilder.build(shot, context);
-
-            if (newChainResult.success && newChainResult.prompt && newChainResult.prompt.length > 0) {
-              prompt = newChainResult.prompt;
-              this.log('STAGE-11', `  🚀 新链路已接管: ${shot.id} | 类型:${shot.type} | 长度:${prompt.length} | 10字段结构`);
-              // 新链路成功,跳过旧链路的后续处理(照明注入、环境注入等)
-              // 新链路本身已包含这些字段
-              gotoFinalSubmit = true;
-            } else {
-              this.log('STAGE-11', `  ⚠️ 新链路失败,fallback到旧链路: ${shot.id} | 原因:${newChainResult.validation?.issues?.join('; ') || '未知'}`);
-            }
-          } catch (e) {
-            this.log('STAGE-11', `  ⚠️ 新链路异常,fallback到旧链路: ${shot.id} | ${e.message}`);
-          }
-        }
-
-        // v6.5.43: 新链路成功时,跳过旧链路后续处理
-        if (gotoFinalSubmit) {
-          shot.prompt = prompt;
-
-          // v6.5.44-fix: 新链路结果必须加入 render 数组,否则后续阶段丢失镜头
-          // v6.5.58-fix: 构建标准输出字段,确保与schema一致
-          const standardOutput = {
-            shotId: shot.id,
-            id: shot.id,
-            type: shot.type || 'generic',
-            scene: shot.scene || '',
-            prompt,
-            referenceImages: [], // 新链路暂未注入定妆照,后续可补充
-            duration: shot.duration,
-            length: prompt.length,
-            mouthAction: shot.mouthAction,
-            utilization: Math.round(prompt.length / PROMPT_LENGTH.HARD_MAX * 100),
-            utilizationStatus: prompt.length >= 970 && prompt.length <= PROMPT_LENGTH.HARD_MAX ? '🔥理想' :
-                             prompt.length > PROMPT_LENGTH.HARD_MAX ? '❌超标' :
-                             prompt.length >= 850 ? '✅达标' : '⚠️空间浪费',
-            qualityScore: { totalScore: 75 }, // 新链路默认质量分
-            enhanced: true,
-            cameraMovement: shot.cameraMovement || null,
-            emotionPhase: shot.emotionPhase || '',
-            importance: shot.importance || 5,
-            visualComplexity: shot.visualComplexity || 5,
-            dialogue: shot.dialogue || '',
-            narration: shot.narration || '',
-            // v6.5.62: 新增字段(基于参考v6.37-Peng优化)
-            characterRef: this._buildCharacterRef(shot, stages) || '',
-            character: this._buildCharacterMinimal(shot, stages) || '',
-            timeline: this._buildTimeline(shot, 0) || '',
-            backgroundSound: this._buildBackgroundSound(shot) || '',
-            isOpening: shot.id === 'S00' || shot.type === 'opening',
-            // v6.5.59-fix: 片头注入title对象
-            title: (shot.id === 'S00' || shot.type === 'opening') ? (shot.title || {
-              main: shot.postProduction?.mainTitle || '',
-              sub: shot.postProduction?.subTitle || 'A Nirath Original by Genius',
-              creator: 'Genius',
-              displayTiming: '6.8-9.0s',
-              position: '画面中央偏下',
-              style: 'elegant serif with subtle geometric flourishes'
-            }) : undefined
-          };
-
-          // 片头专属:注入title对象
-          if (shot.id === 'S00' || shot.type === 'opening') {
-            if (shot.title && typeof shot.title === 'object' && shot.title.main) {
-              standardOutput.title = shot.title;
-            } else if (shot.postProduction && shot.postProduction.mainTitle) {
-              standardOutput.title = {
-                main: shot.postProduction.mainTitle || '',
-                sub: shot.postProduction.subTitle || 'A Nirath Original by Genius',
-                creator: shot.postProduction.brand ? shot.postProduction.brand.replace('A Nirath Original by ', '') : 'Genius',
-                episodeName: shot.postProduction.titleFormation || '',
-                displayTiming: '6.8-9.0s',
-                position: '画面中央偏下',
-                style: shot.postProduction.fontStyle || 'elegant serif with subtle geometric flourishes'
-              };
-            }
-            standardOutput.isOpening = true;
-          }
-
-          prompts.push(standardOutput);
-
-          this.log('STAGE-11', `  ✅ 新链路渲染: ${shot.id} | 10字段结构 | ${prompt.length}字符`);
-          continue; // 跳过旧链路的后续处理
         }
 
         // v6.2-patch62-fix: 如果Prompt中没有【视觉】标记或内容为空,注入兜底视觉描述
@@ -5614,6 +5523,33 @@ ${isNirath
         this.log('STAGE-11', `  ✅ 通用渲染: ${shot.id} | ratio:16:9 | mouthAction:${shot.mouthAction ? '有' : '无'} | ${prompt.length}字符`);
       } // v6.5.43: if (!gotoFinalSubmit) 闭合
 
+      // v6.6.9-fix: 新链路全量切换 - 所有镜头走 FinalPromptBuilderV3(方案A)
+      if (this.modules.finalPromptBuilder) {
+        try {
+          const context = {
+            totalShots: storyboard.shots.length,
+            protagonistName: this.projectConfig.protagonistName || '小G',
+            beastId: this.projectConfig.beastId || '',
+            beastName: this.projectConfig.beastName || '',
+            habitat: this.projectConfig.habitat || shot.scene || '',
+            episodeTheme: this.projectConfig.episodeTheme || '',
+            sceneType: shot.sceneType || 'nature_epic'
+          };
+
+          newChainResult = await this.modules.finalPromptBuilder.build(shot, context);
+
+          if (newChainResult.success && newChainResult.prompt && newChainResult.prompt.length > 0) {
+            prompt = newChainResult.prompt;
+            this.log('STAGE-11', `  🚀 新链路已接管: ${shot.id} | 类型:${shot.type} | 长度:${prompt.length} | 10字段结构`);
+            gotoFinalSubmit = true;
+          } else {
+            this.log('STAGE-11', `  ⚠️ 新链路失败,fallback到旧链路: ${shot.id} | 原因:${newChainResult.validation?.issues?.join('; ') || '未知'}`);
+          }
+        } catch (e) {
+          this.log('STAGE-11', `  ⚠️ 新链路异常,fallback到旧链路: ${shot.id} | ${e.message}`);
+        }
+      }
+
       // v6.5.43: 新链路成功时也需赋值
       if (gotoFinalSubmit && newChainResult) {
         shot.prompt = prompt;
@@ -5685,6 +5621,7 @@ ${isNirath
         }
 
         this.log('STAGE-11', `  ✅ 新链路渲染: ${shot.id} | 10字段结构 | ${prompt.length}字符`);
+        continue; // v6.6.9: 新链路成功，跳过后续增强处理
       }
 
       // 🔥 v6.5.3-fix: 在enhanceShotPrompt前确保shot.prompt包含镜头时间轴
@@ -5973,7 +5910,10 @@ ${isNirath
 
       // P0修复#45-48:Prompt利用率检查(在所有增强之后计算)
       let utilizationStatus = '';
-      if (this.modules.microMotionAdapter || this.modules.beastMotionAdapter) {
+      // v6.6.9: Generic模式跳过Nirath专属动作增强
+      if (this.mode !== 'nirath') {
+        this.log('STAGE-11', `  ⏭️ Generic模式跳过微动作/异兽动作增强`);
+      } else if (this.modules.microMotionAdapter || this.modules.beastMotionAdapter) {
         try {
           let motionEnhanced = prompt;
           let motionLog = [];

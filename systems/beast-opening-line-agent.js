@@ -28,7 +28,8 @@ class BeastOpeningLineAgent {
   async generate(beastProfile, episodeContext = {}) {
     const beastName = beastProfile?.name || beastProfile?.beastName || '神兽';
     const beastTrait = beastProfile?.coreTrait || beastProfile?.uniqueAbility || '未知能力';
-    const habitat = beastProfile?.habitat || 'Nirath';
+    const habitat = beastProfile?.habitat || 'Nirath'; // v6.6.9: 保持默认，但可被覆盖
+    const isNirath = habitat === 'Nirath' || habitat?.includes('Nirath');
     const theme = episodeContext?.theme || '未知主题';
     const reversal = episodeContext?.reversal || '';
 
