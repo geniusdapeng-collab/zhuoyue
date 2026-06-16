@@ -22,82 +22,82 @@ const fss = require('fs');
 const path = require('path');
 
 // ========== 新增:链路完整性反向验证器 ==========
-const { PipelineIntegrityValidator } = require('../../systems/pipeline-integrity-validator.js');
+const { PipelineIntegrityValidator } = require('../systems/pipeline-integrity-validator.js');
 
 // ========== 新增:定妆照强制提交闸机 v1.0 ==========
-const { ReferenceImageGate } = require('../../systems/reference-image-gate.js');
+const { ReferenceImageGate } = require('../systems/reference-image-gate.js');
 
 // ========== v6.0-patch38新增:全局负面提示词注入器 ==========
-const { globalNegativePromptInjector } = require('../../systems/global-negative-prompts.js');
+const { globalNegativePromptInjector } = require('../systems/global-negative-prompts.js');
 
 // ========== v6.2-patch82: Prompt标准模块化系统 ==========
-const StandardV3 = require('../../systems/prompt-standard-v3');  // v3.0: 智能检测+自动修复(旁路)
+const StandardV3 = require('../systems/prompt-standard-v3');  // v3.0: 智能检测+自动修复(旁路)
 
 // ========== v6.5.58: Validator 3 Bug 修复 ==========
-const { normalizeLLMOutput } = require('../../systems/llm-output-normalizer');
-const { standardizePrompt } = require('../../systems/prompt-standardizer');
-const { safeTrimPrompt } = require('../../systems/safe-prompt-trim');
-const { checkStandardCompliance } = require('../../systems/prompt-standard-v3');
-const { processShotsForCompliance, processShotsForOutput, summarizeCompliance } = require('../../systems/prompt-pipeline-bridge');
+const { normalizeLLMOutput } = require('../systems/llm-output-normalizer');
+const { standardizePrompt } = require('../systems/prompt-standardizer');
+const { safeTrimPrompt } = require('../systems/safe-prompt-trim');
+const { checkStandardCompliance } = require('../systems/prompt-standard-v3');
+const { processShotsForCompliance, processShotsForOutput, summarizeCompliance } = require('../systems/prompt-pipeline-bridge');
 
 // ========== 新增:镜头内Prompt增强器(v6.0-patch23融入) ==========
-const { buildAudioDescription, injectAudioDescription } = require('../../systems/intra-shot-prompt-enhancer.js');
+const { buildAudioDescription, injectAudioDescription } = require('../systems/intra-shot-prompt-enhancer.js');
 const { CalibrationEngine, PRD_TEMPLATE } = require('../../shanhaijing-render-engine/story-prd-template-v21.js');
 const { RequirementContract, AlignmentGate } = require('../../seedance-director/scripts/requirement-alignment-gate.js');
 const { SchemaRuntimeValidator } = require('../../seedance-director/scripts/schema-validator.js');
-const { StoryboardValidator } = require('../../systems/storyboard-validator.js');
-const { preRenderValidation, validateCharacterReferences } = require('../../systems/pre-render-validation.js');
+const { StoryboardValidator } = require('../systems/storyboard-validator.js');
+const { preRenderValidation, validateCharacterReferences } = require('../systems/pre-render-validation.js');
 
 // ========== v2.0: 创意指数系统 (Creative Intensity Index) ==========
-const { CreativeIntensityIndex } = require('../../systems/creative-intensity-index.js');
-const { CreativeIntensityRecommender } = require('../../systems/creative-intensity-recommender.js');
+const { CreativeIntensityIndex } = require('../systems/creative-intensity-index.js');
+const { CreativeIntensityRecommender } = require('../systems/creative-intensity-recommender.js');
 
 // ========== 新增:片头系统集成(v3.0-patch5) ==========
-const OpeningSystem = require('../../systems/opening-system-v3.js');
-const { CharacterManagerV2 } = require('../../systems/character-manager-v2.js');
-const { CharacterPromptBuilder } = require('../../systems/character-prompt-builder.js');
-const { CharacterComplianceChecker } = require('../../systems/character-compliance-checker.js');
-const { CharacterEraGuide } = require('../../systems/character-era-guide.js');
+const OpeningSystem = require('../systems/opening-system-v3.js');
+const { CharacterManagerV2 } = require('../systems/character-manager-v2.js');
+const { CharacterPromptBuilder } = require('../systems/character-prompt-builder.js');
+const { CharacterComplianceChecker } = require('../systems/character-compliance-checker.js');
+const { CharacterEraGuide } = require('../systems/character-era-guide.js');
 
 // v6.3-patch10-fix: 引入真实字符计数模块
-const { charCounter } = require('../../systems/char-counter');
-const { dedupeShotFields } = require('../../systems/prompt-dedupe');
+const { charCounter } = require('../systems/char-counter');
+const { dedupeShotFields } = require('../systems/prompt-dedupe');
 const PROMPT_LENGTH = require('../../config/prompt-length');
 
 // ========== v6.2-patch68: 环境音效设计Agent ==========
-const { generateAmbientSoundField } = require('../../systems/ambient-sound-designer.js');
+const { generateAmbientSoundField } = require('../systems/ambient-sound-designer.js');
 
 // ========== 渲染层模块(Nirath原生) ==========
 const { OrientPrimordialCoreV24 } = require('../../shanhaijing-render-engine/orient-primordial-core-v24.js');
-const { CameraMovementSystem } = require('../../systems/camera-movement-system-v2.js');
+const { CameraMovementSystem } = require('../systems/camera-movement-system-v2.js');
 // 🔥 v6.2-fix: 引入v3镜头内时间轴生成器(恢复英雄之旅运镜复杂度)
-const { IntraShotTimelineGenerator, SHOT_SIZE_TRANSITIONS, LIGHTING_TRANSITIONS, SPEED_CURVES, TRANSITION_EFFECTS } = require('../../systems/camera-movement-system-v3.js');
+const { IntraShotTimelineGenerator, SHOT_SIZE_TRANSITIONS, LIGHTING_TRANSITIONS, SPEED_CURVES, TRANSITION_EFFECTS } = require('../systems/camera-movement-system-v3.js');
 // 🔥 v6.6.5-v4: 引入v4 LLM驱动个性化时间轴系统
-const { CameraMovementSystemV4 } = require('../../systems/camera-movement-system-v4.js');
-const { NirathCharacterEnhancer, WorldSoulBinding } = require('../../systems/nirath-character-enhancement.js');
-const audit = require('../../systems/audit-logger'); // P1: 操作审计日志
-const { UniversalStyleInjector } = require('../../systems/universal-style-injector.js');
+const { CameraMovementSystemV4 } = require('../systems/camera-movement-system-v4.js');
+const { NirathCharacterEnhancer, WorldSoulBinding } = require('../systems/nirath-character-enhancement.js');
+const audit = require('../systems/audit-logger'); // P1: 操作审计日志
+const { UniversalStyleInjector } = require('../systems/universal-style-injector.js');
 
 // ========== 辅助层模块 ==========
-const { ShotDurationAllocator } = require('../../systems/shot-duration-allocator.js');
-const { DurationCalculator } = require('../../systems/duration-calculator.js');
-const { ContinuityEngine } = require('../../systems/continuity-engine.js');
+const { ShotDurationAllocator } = require('../systems/shot-duration-allocator.js');
+const { DurationCalculator } = require('../systems/duration-calculator.js');
+const { ContinuityEngine } = require('../systems/continuity-engine.js');
 
 // 【v6.0-patch22 新增】Nirath 视觉锚点注入器
-const { NirathVisualAnchorInjector } = require('../../systems/nirath-visual-anchor-injector.js');
+const { NirathVisualAnchorInjector } = require('../systems/nirath-visual-anchor-injector.js');
 
 // 【v6.4.1】StageRunner + StageService + QualityGate
-const { StageRunner } = require('../../systems/stage-runner');
-const { StageContext } = require('../../systems/stage-context');
-const { QualityGate } = require('../../systems/quality-gate');
-// const { StageScriptService } = require('../../systems/stages/stage-script');
-// const { StageDurationService } = require('../../systems/stages/stage-duration');
-// const { StageStoryboardService } = require('../../systems/stages/stage-storyboard');
-// const { StageCameraService } = require('../../systems/stages/stage-camera');
-// const { StageRenderPrepService } = require('../../systems/stages/stage-render-prep');
+const { StageRunner } = require('../systems/stage-runner');
+const { StageContext } = require('../systems/stage-context');
+const { QualityGate } = require('../systems/quality-gate');
+// const { StageScriptService } = require('../systems/stages/stage-script');
+// const { StageDurationService } = require('../systems/stages/stage-duration');
+// const { StageStoryboardService } = require('../systems/stages/stage-storyboard');
+// const { StageCameraService } = require('../systems/stages/stage-camera');
+// const { StageRenderPrepService } = require('../systems/stages/stage-render-prep');
 
 // 【v6.0-patch22 新增】后期制作管线(标题烧录)
-const { PostProductionPipeline } = require('../../systems/post-production-pipeline.js');
+const { PostProductionPipeline } = require('../systems/post-production-pipeline.js');
 
 // 【v6.2-patch46 新增】MicroMotion + BeastMotion 动作增强适配器
 let MicroMotionSystem, ShanhaijingMicroMotionSystem, beastMotionAdapter;
@@ -114,38 +114,38 @@ try {
 // 【v6.2-patch47 新增】美术布景模块(Set Design Module)
 let SetDesignModule;
 try {
-  SetDesignModule = require('../../systems/set-design-module/index').SetDesignModule;
+  SetDesignModule = require('../systems/set-design-module/index').SetDesignModule;
 } catch (e) { /* 可选依赖 */ }
 
 // 【v6.2-patch51 新增】主角主动性自动注入器
-const { ProactiveProtagonistInjector } = require('../../systems/proactive-protagonist-injector.js');
+const { ProactiveProtagonistInjector } = require('../systems/proactive-protagonist-injector.js');
 
 // 【v6.2-patch51 新增】结尾镜情绪增强器
-const { ClosingShotEmotionalBooster } = require('../../systems/closing-shot-emotional-booster.js');
+const { ClosingShotEmotionalBooster } = require('../systems/closing-shot-emotional-booster.js');
 
 // 【v6.2-patch51 新增】Narration自动精简器
-const { NarrationAutoTrim } = require('../../systems/narration-auto-trim.js');
+const { NarrationAutoTrim } = require('../systems/narration-auto-trim.js');
 
 // 【v6.2-patch52 新增】时长-字数一致性校准器
-const { DurationNarrationAlignment } = require('../../systems/duration-narration-alignment.js');
+const { DurationNarrationAlignment } = require('../systems/duration-narration-alignment.js');
 // 【v6.6.0 新增】用户需求解析确认模块(Stage -1)
-const { UserRequirementParser } = require('../../systems/user-requirement-parser.js');
+const { UserRequirementParser } = require('../systems/user-requirement-parser.js');
 
 // 【v6.6.0 新增】真实感提示词增强器(软性注入层)
-const { RealismPromptEnhancer } = require('../../systems/realism-prompt-enhancer.js');
-const { ExecutionIntegrityEnforcer } = require('../../systems/execution-integrity-enforcer.js');
+const { RealismPromptEnhancer } = require('../systems/realism-prompt-enhancer.js');
+const { ExecutionIntegrityEnforcer } = require('../systems/execution-integrity-enforcer.js');
 
 // ========== v6.2-patch96: 微表情系统 v2.0 ==========
-const { MicroExpressionAllocator } = require('../../systems/micro-expression-system-v2.js');
+const { MicroExpressionAllocator } = require('../systems/micro-expression-system-v2.js');
 // ========== v6.2-patch63: 独白通道隔离+运镜同步+情绪增强器边界修复 ==========
-const PromptTierArchitecture = require('../../systems/prompt-tier-architecture.js');
-const { PromptChannelSeparator } = require('../../systems/prompt-channel-separator.js');
-const { PromptQualityGate } = require('../../systems/prompt-quality-gate.js');
-const { TechSpecsAndEmotionMapper } = require('../../systems/tech-specs-emotion-mapper.js');
-const { WorldviewAndSceneManager } = require('../../systems/worldview-scene-manager.js');
+const PromptTierArchitecture = require('../systems/prompt-tier-architecture.js');
+const { PromptChannelSeparator } = require('../systems/prompt-channel-separator.js');
+const { PromptQualityGate } = require('../systems/prompt-quality-gate.js');
+const { TechSpecsAndEmotionMapper } = require('../systems/tech-specs-emotion-mapper.js');
+const { WorldviewAndSceneManager } = require('../systems/worldview-scene-manager.js');
 
 // 【v6.5.43】引入新链路:FinalPromptBuilderV3(外部专家建议落地)
-const { FinalPromptBuilderV3 } = require('../../systems/final-prompt-builder-v3');
+const { FinalPromptBuilderV3 } = require('../systems/final-prompt-builder-v3');
 function safeGetPromptText(obj) {
   if (!obj || typeof obj !== 'object') return '';
   const candidates = [
@@ -615,7 +615,7 @@ class NirathMasterPipeline {
     }).catch(e => console.error(`[Audit] 日志写入失败: ${e.message}`));
 
 
-    const { StagePerformanceBaseline } = require('../../systems/stage-performance-baseline.js');
+    const { StagePerformanceBaseline } = require('../systems/stage-performance-baseline.js');
     const performanceBaseline = new StagePerformanceBaseline({ enabled: true });
 
     // 【v6.4.1】StageRunner + StageContext 初始化
@@ -706,7 +706,7 @@ class NirathMasterPipeline {
       // Stage 0: Mock数据清理检查(P0防呆)
       result.stages.mockCleanup = await runStage('STAGE-0', async () => {
         if (process.env.MOCK_TEST_MODE !== 'true') {
-          const { MockDataCleanupContract } = require('../../systems/mock-data-cleanup-contract');
+          const { MockDataCleanupContract } = require('../systems/mock-data-cleanup-contract');
           const cleanupContract = new MockDataCleanupContract({ workDir: path.join(__dirname, '..') });
           try {
             await cleanupContract.enforce();
@@ -871,7 +871,7 @@ class NirathMasterPipeline {
         const {
           processShotsForCompliance,
           summarizeCompliance
-        } = require('../../systems/prompt-pipeline-bridge');
+        } = require('../systems/prompt-pipeline-bridge');
 
         // 尝试统一 shots 来源
         let __bridgeShots = null;
@@ -1377,7 +1377,7 @@ class NirathMasterPipeline {
       const {
         processShotsForOutput,
         summarizeCompliance
-      } = require('../../systems/prompt-pipeline-bridge');
+      } = require('../systems/prompt-pipeline-bridge');
       const promptforgeResultDir = path.join(process.cwd(), 'output/prompts/_promptforge_results');
       const promptforgeMarkdownDir = path.join(process.cwd(), 'output/prompts');
 
@@ -1796,7 +1796,7 @@ class NirathMasterPipeline {
       } else if (input?.storyCraftVersion || input?.enableStoryCraft) {
         // 使用StoryCraft(与之前相同)
         this.log('STAGE-5', '⚠️ 剧本Agent未配置,自动启用StoryCraft作为默认剧本Agent');
-        const { StoryCraftIntegration } = require('../../systems/story-craft-engine/story-craft-integration');
+        const { StoryCraftIntegration } = require('../systems/story-craft-engine/story-craft-integration');
         const storyCraft = new StoryCraftIntegration({ enabled: true, useLLM: true });
         const beastProfile = input?.beastProfile || input?.beast || input?.core?.beast || {};
         const scResult = await storyCraft.generateStory(input, beastProfile);
@@ -1958,7 +1958,7 @@ class NirathMasterPipeline {
   }
 
   async _generateScriptCorePhase(input) {
-    const { LLMEngine } = require('../../systems/llm-reasoning-engine');
+    const { LLMEngine } = require('../systems/llm-reasoning-engine');
 
     const llm = new LLMEngine({
       model: 'kimi-k2p6',
@@ -2064,7 +2064,7 @@ class NirathMasterPipeline {
   }
 
   async _generateVisualPromptPhase(input) {
-    const { LLMEngine } = require('../../systems/llm-reasoning-engine');
+    const { LLMEngine } = require('../systems/llm-reasoning-engine');
 
     const llm = new LLMEngine({
       model: 'kimi-k2p6',
@@ -2592,7 +2592,7 @@ ${isNirath
 
     try {
       // 加载 FPV Intelligence Engine
-      const { FPVIntelligenceEngine } = require('../../systems/fpv-intelligence-engine.js');
+      const { FPVIntelligenceEngine } = require('../systems/fpv-intelligence-engine.js');
       const fpvEngine = new FPVIntelligenceEngine();
 
       // 转换 scenes 为 shots 格式(兼容FPV引擎)
@@ -2932,7 +2932,7 @@ ${isNirath
       this.log('STAGE-5.0', 'StoryCraft Engine v2.0 启用 - 异兽视角叙事 + 60秒三幕引擎 + 钻石台词');
 
       try {
-        const { StoryCraftIntegration } = require('../../systems/story-craft-engine/story-craft-integration');
+        const { StoryCraftIntegration } = require('../systems/story-craft-engine/story-craft-integration');
         const storyCraft = new StoryCraftIntegration({
           enabled: true,
           strictMode: false,
@@ -3168,7 +3168,7 @@ ${isNirath
     let mapper = null; // v6.2-fix: 提升到函数作用域,用于后续获取自动生成统计
 
     if (this.mode === 'nirath') {
-      const { NirathSceneMapper } = require('../../systems/nirath-scene-mapper');
+      const { NirathSceneMapper } = require('../systems/nirath-scene-mapper');
       mapper = new NirathSceneMapper();
 
       // v6.2-fix: 从input中提取beastId用于栖息地映射
@@ -4338,7 +4338,7 @@ ${isNirath
     }
 
     try {
-      const { FiveElementInspector } = require('../../systems/five-element-inspector');
+      const { FiveElementInspector } = require('../systems/five-element-inspector');
       // v6.1-fix: 使用检查器默认阈值(已优化为5-6镜友好),不再硬编码覆盖
       const inspector = new FiveElementInspector({
         strictMode: false // 警告模式,不拦截
@@ -4468,7 +4468,7 @@ ${isNirath
 
           // 调用FPV电影感增强模块
           try {
-            const { FPVCinematographyAgent } = require('../../systems/fpv-cinematic-enhancement.js');
+            const { FPVCinematographyAgent } = require('../systems/fpv-cinematic-enhancement.js');
             const fpvAgent = new FPVCinematographyAgent();
 
             const fpvConfig = {
@@ -5680,7 +5680,7 @@ ${isNirath
       }
 
       // ========== v6.0-patch23: 自动注入镜头内细分增强 ==========
-      const { enhanceShotPrompt } = require('../../systems/intra-shot-prompt-enhancer.js');
+      const { enhanceShotPrompt } = require('../systems/intra-shot-prompt-enhancer.js');
 
       // v6.5.35: 从角色信息中提取年龄和情绪
       const charId = shot.characters?.[0] || 'adult';
@@ -7256,7 +7256,7 @@ ${isNirath
       };
     }
 
-    const { DirectorStyleLibrary } = require('../../systems/director-style-library.js');
+    const { DirectorStyleLibrary } = require('../systems/director-style-library.js');
     const styleLib = new DirectorStyleLibrary({ mode: this.mode });
 
     // 推断场景类型
