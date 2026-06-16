@@ -7,7 +7,7 @@
  */
 
 const { AdventureCinematographySystem } = require('./nirath/adventure-cinematography-system');
-const { AmbientSoundDesigner } = require('./ambient-sound-designer');
+const { generateAmbientSoundField } = require('./ambient-sound-designer');
 const { generateBeastEntrance } = require('./nirath/beast-entrance-agent');
 const { BeastOpeningLineAgent } = require('./nirath/beast-opening-line-agent');
 const { BeastVoiceSignatureEngine } = require('./nirath/beast-voice-signature-engine');
@@ -17,7 +17,7 @@ class SubsystemOrchestrator {
   constructor(options = {}) {
     this.options = options;
     this.adventure = new AdventureCinematographySystem(options.adventure || {});
-    this.soundDesigner = new AmbientSoundDesigner();
+    this.soundOptions = options.sound || {};
     this.openingLineAgent = new BeastOpeningLineAgent(options.openingLine || {});
     this.voiceEngine = new BeastVoiceSignatureEngine();
     this.negativeInjector = new GlobalNegativePromptInjector();
@@ -69,7 +69,7 @@ class SubsystemOrchestrator {
     }
 
     // 2. 环境音
-    const soundText = this.soundDesigner.design(shot, { maxChars: 80 });
+    const soundText = generateAmbientSoundField(shot, { maxChars: 80, mode: this.soundOptions.mode || 'generic' });
     if (soundText) {
       result.AUDIO = soundText;
       result.meta.activatedSubsystems.push('AmbientSoundDesigner');
