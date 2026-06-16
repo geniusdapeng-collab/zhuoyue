@@ -2,7 +2,6 @@ const { ConfigUnifier } = require('./config-unifier-v1');
 const { FieldMapper } = require('./field-mapper-v1');
 const { ShotSchemaValidator } = require('./shot-schema-validator-v1');
 const { SubsystemOrchestratorV2 } = require('./subsystem-orchestrator-v2');
-const { CreativeLLMRouter } = require('./creative-llm-router-v1');
 const { NegativeFieldBuilder } = require('./negative-field-builder-v1');
 const { ClosingShotEmotionalBoosterV2 } = require('./closing-shot-emotional-booster-v2');
 const { PromptNormalizer } = require('./prompt-normalizer-v1');
@@ -18,13 +17,7 @@ class FinalPromptBuilderV3 {
     this.mapper = new FieldMapper();
     this.schemaValidator = new ShotSchemaValidator({ strict: false });
     this.orchestrator = new SubsystemOrchestratorV2(options.subsystems || {});
-    this.creativeRouter = new CreativeLLMRouter({
-      enabled: options.llmEnabled !== false,
-      model: options.llmModel || this.config.getLLMModel('kimi-k2p6'),
-      timeoutMs: this.config.getLLMTimeout('creative'),
-      maxRetries: this.config.getLLMMaxRetries()
-    });
-
+    this.creativeRouter = null; // v6.6.9.4-patch19: 懒加载，避免generic模式加载Nirath模块
     this.negativeBuilder = new NegativeFieldBuilder({ maxLength: 220 });
     this.closingBooster = new ClosingShotEmotionalBoosterV2();
     this.normalizer = new PromptNormalizer({ maxLength: this.maxLength });
@@ -35,6 +28,19 @@ class FinalPromptBuilderV3 {
       enabled: options.debug !== false,
       outputDir: options.debugOutputDir
     });
+  }
+
+  _getCreativeRouter() {
+    if (!this.creativeRouter) {
+      const { CreativeLLMRouter } = require('./nirath/creative-llm-router-v1');
+      this.creativeRouter = new CreativeLLMRouter({
+        enabled: this.config.llmEnabled !== false,
+        model: this.config.llmModel || this.config.getLLMModel('kimi-k2p6'),
+        timeoutMs: this.config.getLLMTimeout('creative'),
+        maxRetries: this.config.getLLMMaxRetries()
+      });
+    }
+    return this.creativeRouter;
   }
 
   async build(rawShot, context = {}) {
@@ -51,7 +57,7 @@ class FinalPromptBuilderV3 {
     const useLLM = this._shouldUseLLM(shot);
     let llmFields = {};
     if (useLLM) {
-      llmFields = await this.creativeRouter.decideShotCreative(shot, context);
+      llmFields = await this._getCreativeRouter().decideShotCreative(shot, context);
     }
 
     // 4. 合并字段
@@ -97,84 +103,43 @@ class FinalPromptBuilderV3 {
       finalPrompt: normalized.prompt,
       validation,
       meta: {
-        boosted: boosted.enhanced,
-        trimmed: trimmed.trimmed,
-        trimmedFields: trimmed.trimmedFields || [],
-        usedLLM: useLLM
+        builderVersion: 'v3',
+        timestamp: new Date().toISOString()
       }
     });
 
-    // DEBUG: 检查DIALOGUE字段
-    if (!normalized.fields.DIALOGUE) {
-      console.log(`[FinalPromptBuilder] ⚠️ ${shotId} 缺少DIALOGUE字段!`);
-    }
-
     return {
-      success: validation.valid,
+      shotId,
       prompt: normalized.prompt,
       fields: normalized.fields,
-      length: normalized.length,
-      schemaCheck,
       validation,
-      meta: {
-        boosted: boosted.enhanced,
-        trimmed: trimmed.trimmed,
-        trimmedFields: trimmed.trimmedFields || [],
-        usedLLM: useLLM,
-        subsystemFields,
-        llmFields
-      }
-    };
-  }
-
-  async buildBatch(rawShots = [], context = {}) {
-    const results = [];
-    for (let i = 0; i < rawShots.length; i++) {
-      const shot = rawShots[i];
-      const result = await this.build(shot, {
-        ...context,
-        index: i,
-        totalShots: rawShots.length
-      });
-      results.push({
-        shotId: shot.id || shot.shotId || `shot_${i}`,
-        ...result
-      });
-    }
-
-    return {
-      success: results.every(r => r.success),
-      total: results.length,
-      failed: results.filter(r => !r.success).length,
-      results
+      debug: this.debugRecorder.getRecord(shotId)
     };
   }
 
   _shouldUseLLM(shot) {
-    const type = (shot.type || '').toLowerCase();
-    return (
-      type.includes('opening') ||
-      type.includes('reveal') ||
-      type.includes('climax') ||
-      shot.isOpening ||
-      (shot.tension || 0) > 80
-    );
+    const type = (shot.type || shot.shotType || '').toLowerCase();
+    return type.includes('opening') || type.includes('reveal') || type.includes('climax');
   }
 
-  _mergeFields(subsystemFields, llmFields, shot) {
-    return {
-      CHARACTER: subsystemFields.CHARACTER || llmFields.CHARACTER || (shot.characters || []).join('，'),
-      DIALOGUE: subsystemFields.DIALOGUE || llmFields.DIALOGUE || shot.dialogue || shot.narration || '',
-      ACTION: subsystemFields.ACTION || llmFields.ACTION || shot.action || '',
-      SCENE: subsystemFields.SCENE || llmFields.SCENE || shot.visualPrompt || shot.scene || '',
-      MOOD: subsystemFields.MOOD || llmFields.MOOD || shot.emotionPhase || '',
-      CAMERA: subsystemFields.CAMERA || llmFields.CAMERA || shot.camera || '',
-      LIGHTING: subsystemFields.LIGHTING || llmFields.LIGHTING || '',
-      NEGATIVE: subsystemFields.NEGATIVE || '',
-      AUDIO: subsystemFields.AUDIO || llmFields.AUDIO || shot.audio || '',
-      RENDER: subsystemFields.RENDER || shot.renderStyle || '电影级、超写实、细节丰富',
-      DIRECTOR: subsystemFields.DIRECTOR || llmFields.DIRECTOR || ''
-    };
+  _mergeFields(subsystem, llm, shot) {
+    const merged = { ...subsystem };
+    
+    // LLM 字段优先级更高
+    if (llm && typeof llm === 'object') {
+      Object.keys(llm).forEach(key => {
+        if (llm[key] && llm[key].trim && llm[key].trim().length > 0) {
+          merged[key] = llm[key];
+        }
+      });
+    }
+    
+    // 确保必要字段存在
+    if (!merged.CHARACTER && shot.characters) {
+      merged.CHARACTER = shot.characters.map(c => c.name || c).join(', ');
+    }
+    
+    return merged;
   }
 }
 

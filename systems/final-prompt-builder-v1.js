@@ -1,5 +1,5 @@
 const { SubsystemOrchestrator } = require('./subsystem-orchestrator-v1');
-const { CreativeLLMRouter } = require('./creative-llm-router-v1');
+const { CreativeLLMRouter } = require('./nirath/creative-llm-router-v1');
 const { PromptNormalizer } = require('./prompt-normalizer-v1');
 const { PromptValidator } = require('./prompt-validator-v1');
 

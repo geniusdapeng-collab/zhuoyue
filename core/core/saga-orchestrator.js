@@ -19,7 +19,7 @@
 
 'use strict';
 
-const { NirathEventBus } = require('../systems/event-bus-pilot');
+const { NirathEventBus } = require('../systems/nirath/event-bus-pilot');
 
 // ============================================================
 // 一、Saga 阶段定义

@@ -61,7 +61,7 @@ class AsyncDirectorAgent {
       
       // ===== Step 1: 导演优化 =====
       console.log(`[AsyncDirectorAgent] 🎬 Step 1: 导演优化...`);
-      const { DirectorFinalReview } = require('./director-final-review.js');
+      const { DirectorFinalReview } = require('./nirath/director-final-review.js');
       const directorReview = new DirectorFinalReview({ 
         mode: this.mode, 
         useLLM: true,
