@@ -13,6 +13,7 @@ class FinalPromptBuilderV3 {
   constructor(options = {}) {
     this.config = new ConfigUnifier();
     this.maxLength = options.maxLength || this.config.getPromptMaxLength();
+    this.mode = options.mode || 'nirath'; // v6.6.9.4-patch25: 支持模式隔离
 
     this.mapper = new FieldMapper();
     this.schemaValidator = new ShotSchemaValidator({ strict: false });
@@ -118,6 +119,9 @@ class FinalPromptBuilderV3 {
   }
 
   _shouldUseLLM(shot) {
+    // v6.6.9.4-patch25: generic模式不调用Nirath专属CreativeLLMRouter
+    if (this.mode === 'generic') return false;
+    
     const type = (shot.type || shot.shotType || '').toLowerCase();
     return type.includes('opening') || type.includes('reveal') || type.includes('climax');
   }

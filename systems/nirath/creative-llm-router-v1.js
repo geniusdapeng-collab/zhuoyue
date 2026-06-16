@@ -181,7 +181,7 @@ class CreativeLLMRouter {
       beastName: context.beastName || '',
       habitat: context.habitat || '',
       goal: context.goal || context.storyGoal || '',
-      style: context.style || '神话电影感、超写实、镜头感强'
+      style: context.style || '电影级质感、超写实、镜头感强'
     };
   }
 

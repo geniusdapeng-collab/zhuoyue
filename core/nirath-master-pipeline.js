@@ -357,6 +357,7 @@ class NirathMasterPipeline {
 
       // 【v6.5.43】新链路:FinalPromptBuilderV3(外部专家建议落地)
       finalPromptBuilder: new FinalPromptBuilderV3({
+        mode: this.mode, // v6.6.9.4-patch25: 传递模式参数，支持generic隔离
         debug: true,
         llmEnabled: this.useLLM,
         debugOutputDir: this.outputDir
