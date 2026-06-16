@@ -314,7 +314,7 @@ class NirathSceneMapper {
     // 根据情绪阶段推荐光源
     let lighting = null;
     try {
-      const { getLightingForEmotion } = require('./intra-shot-prompt-enhancer.js');
+      const { getLightingForEmotion } = require('../intra-shot-prompt-enhancer.js');
       const lights = getLightingForEmotion(emotionChinese);
       if (lights && lights.length > 0) {
         lighting = {

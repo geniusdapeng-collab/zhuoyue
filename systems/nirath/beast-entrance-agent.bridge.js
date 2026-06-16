@@ -1,4 +1,4 @@
-const { generateBeastEntrance } = require('./beast-entrance-agent');
+const { generateBeastEntrance } = require('../beast-entrance-agent');
 
 class BeastEntranceAgentBridge {
   constructor(options = {}) {
