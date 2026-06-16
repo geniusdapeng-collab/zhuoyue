@@ -14,14 +14,14 @@
 
 const MaterialEngine = require('./aetherium-material-engine');
 const KineticsEngine = require('./astralis-kinetics-engine');
-const SignatureEngine = require('./astralis-signature-engine');
+const SignatureEngine = require('./nirath/astralis-signature-engine');
 const {
   NIRATH_PLANET_CORE,
   ASTRALIS_LIGHTING_MODEL,
   getStarDescription,
   getMagnetosphereDescription,
   getEcosystemDescription
-} = require('./nirath-bible');
+} = require('./nirath/nirath-bible');
 
 /**
  * ASTRALIS CORE — Generate complete Nirath opening title Prompt
@@ -105,7 +105,7 @@ function generateNirathOpening(config) {
 
   // Section 6.5: NIRATH Brightness Mandate (v3.0-patch1)
   // ═══════════════════════════════════════
-  const brightnessMandate = require('./nirath-bible').getBrightnessMandate();
+  const brightnessMandate = require('./nirath/nirath-bible').getBrightnessMandate();
   prompt += `【NIRATH明亮约束】${brightnessMandate}\n\n`;
 
   // ═══════════════════════════════════════

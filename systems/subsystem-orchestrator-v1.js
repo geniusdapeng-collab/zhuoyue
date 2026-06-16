@@ -9,7 +9,7 @@
 const { AdventureCinematographySystem } = require('./adventure-cinematography-system');
 const { AmbientSoundDesigner } = require('./ambient-sound-designer');
 const { generateBeastEntrance } = require('./beast-entrance-agent');
-const { BeastOpeningLineAgent } = require('./beast-opening-line-agent');
+const { BeastOpeningLineAgent } = require('./nirath/beast-opening-line-agent');
 const { BeastVoiceSignatureEngine } = require('./beast-voice-signature-engine');
 const { GlobalNegativePromptInjector } = require('./global-negative-prompts');
 

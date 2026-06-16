@@ -74,7 +74,7 @@ const { CameraMovementSystem } = require('../systems/camera-movement-system-v2.j
 const { IntraShotTimelineGenerator, SHOT_SIZE_TRANSITIONS, LIGHTING_TRANSITIONS, SPEED_CURVES, TRANSITION_EFFECTS } = require('../systems/camera-movement-system-v3.js');
 // 🔥 v6.6.5-v4: 引入v4 LLM驱动个性化时间轴系统
 const { CameraMovementSystemV4 } = require('../systems/camera-movement-system-v4.js');
-const { NirathCharacterEnhancer, WorldSoulBinding } = require('../systems/nirath-character-enhancement.js');
+const { NirathCharacterEnhancer, WorldSoulBinding } = require('../systems/nirath/nirath-character-enhancement.js');
 const audit = require('../systems/audit-logger'); // P1: 操作审计日志
 const { UniversalStyleInjector } = require('../systems/universal-style-injector.js');
 
@@ -84,7 +84,7 @@ const { DurationCalculator } = require('../systems/duration-calculator.js');
 const { ContinuityEngine } = require('../systems/continuity-engine.js');
 
 // 【v6.0-patch22 新增】Nirath 视觉锚点注入器
-const { NirathVisualAnchorInjector } = require('../systems/nirath-visual-anchor-injector.js');
+const { NirathVisualAnchorInjector } = require('../systems/nirath/nirath-visual-anchor-injector.js');
 
 // 【v6.4.1】StageRunner + StageService + QualityGate
 const { StageRunner } = require('../systems/stage-runner');
@@ -3177,7 +3177,7 @@ ${isNirath
     let mapper = null; // v6.2-fix: 提升到函数作用域,用于后续获取自动生成统计
 
     if (this.mode === 'nirath') {
-      const { NirathSceneMapper } = require('../systems/nirath-scene-mapper');
+      const { NirathSceneMapper } = require('../systems/nirath/nirath-scene-mapper');
       mapper = new NirathSceneMapper();
 
       // v6.2-fix: 从input中提取beastId用于栖息地映射

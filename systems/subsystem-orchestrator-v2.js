@@ -1,8 +1,8 @@
 const { AdventureCinematographySystem } = require('./adventure-cinematography-system');
 const { AmbientSoundDesignerBridge } = require('./ambient-sound-designer.bridge');
-const { BeastEntranceAgentBridge } = require('./beast-entrance-agent.bridge');
+const { BeastEntranceAgentBridge } = require('./nirath/beast-entrance-agent.bridge');
 const { CameraMovementSystemV3Bridge } = require('./camera-movement-system-v3.bridge');
-const { BeastOpeningLineAgent } = require('./beast-opening-line-agent');
+const { BeastOpeningLineAgent } = require('./nirath/beast-opening-line-agent');
 const { BeastVoiceSignatureEngine } = require('./beast-voice-signature-engine');
 
 class SubsystemOrchestratorV2 {

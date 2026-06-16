@@ -75,7 +75,7 @@ const { OrientPrimordialCoreV24 } = require('../shanhaijing-render-engine/orient
 const { CameraMovementSystem } = require('./camera-movement-system-v2.js');
 // 🔥 v6.2-fix: 引入v3镜头内时间轴生成器(恢复英雄之旅运镜复杂度)
 const { IntraShotTimelineGenerator, SHOT_SIZE_TRANSITIONS, LIGHTING_TRANSITIONS, SPEED_CURVES, TRANSITION_EFFECTS } = require('./camera-movement-system-v3.js');
-const { NirathCharacterEnhancer, WorldSoulBinding } = require('./nirath-character-enhancement.js');
+const { NirathCharacterEnhancer, WorldSoulBinding } = require('./nirath/nirath-character-enhancement.js');
 const audit = require('./audit-logger'); // P1: 操作审计日志
 const { UniversalStyleInjector } = require('./universal-style-injector.js');
 
@@ -85,7 +85,7 @@ const { DurationCalculator } = require('./duration-calculator.js');
 const { ContinuityEngine } = require('./continuity-engine.js');
 
 // 【v6.0-patch22 新增】Nirath 视觉锚点注入器
-const { NirathVisualAnchorInjector } = require('./nirath-visual-anchor-injector.js');
+const { NirathVisualAnchorInjector } = require('./nirath/nirath-visual-anchor-injector.js');
 
 // 【v6.4.1】StageRunner + StageService + QualityGate
 const { StageRunner } = require('./stage-runner');
@@ -3023,7 +3023,7 @@ ${isNirath
     let mapper = null; // v6.2-fix: 提升到函数作用域,用于后续获取自动生成统计
 
     if (this.mode === 'nirath') {
-      const { NirathSceneMapper } = require('./nirath-scene-mapper');
+      const { NirathSceneMapper } = require('./nirath/nirath-scene-mapper');
       mapper = new NirathSceneMapper();
 
       // v6.2-fix: 从input中提取beastId用于栖息地映射
