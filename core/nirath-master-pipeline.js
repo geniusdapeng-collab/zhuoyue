@@ -68,7 +68,7 @@ const PROMPT_LENGTH = require('../../config/prompt-length');
 // ========== v6.2-patch68: 环境音效设计Agent ==========
 const { generateAmbientSoundField } = require('../systems/ambient-sound-designer.js');
 
-// ========== 渲染层模块(Nirath原生) ==========
+// ========== 渲染层模块(视频生成核心) ==========
 const { OrientPrimordialCoreV24 } = require('../../shanhaijing-render-engine/orient-primordial-core-v24.js');
 const { CameraMovementSystem } = require('../systems/camera-movement-system-v2.js');
 // 🔥 v6.2-fix: 引入v3镜头内时间轴生成器(恢复英雄之旅运镜复杂度)
@@ -84,7 +84,7 @@ const { ShotDurationAllocator } = require('../systems/shot-duration-allocator.js
 const { DurationCalculator } = require('../systems/duration-calculator.js');
 const { ContinuityEngine } = require('../systems/continuity-engine.js');
 
-// 【v6.0-patch22 新增】Nirath 视觉锚点注入器
+// 【v6.0-patch22 新增】视觉锚点注入器
 const { NirathVisualAnchorInjector } = require('../systems/nirath/nirath-visual-anchor-injector.js');
 
 // 【v6.4.1】StageRunner + StageService + QualityGate
@@ -812,7 +812,7 @@ class NirathMasterPipeline {
         this.log('STAGE-8.5', `⚠️ 五要素检查发现${result.stages.fiveElement.failedElements?.length || 0}项未达标,记录问题供审阅优化`);
       }
 
-      // Stage 9: 运镜系统(Nirath v2 + FPV导演决策)
+      // Stage 9: 运镜系统(v2 + FPV导演决策)
       result.stages.camera = await runStage('STAGE-9', () => this.stageCameraMovement(result.stages.storyboard, result.stages.fpvDecision));
       this._injectCreativeIntensity('STAGE-9', result.stages.camera);
 
@@ -826,7 +826,7 @@ class NirathMasterPipeline {
         this.log('STAGE-10.5', `⚠️ 前置输入检查发现${result.stages.safetyGate.results.filter(r => !r.passed).length}个镜头输入不完整,记录问题但继续执行(预生产模式)`);
       }
 
-      // Stage 11: 渲染核心(Nirath v24.3 风格前置化)
+      // Stage 11: 渲染核心(v24.3 风格前置化)
       result.stages.render = await runStage('STAGE-11', () => this.stageRender(result.stages));
       this._injectCreativeIntensity('STAGE-11', result.stages.render);
 
@@ -1681,14 +1681,14 @@ class NirathMasterPipeline {
       }
       this.log('STAGE-4', `  ✅ CharacterComplianceChecker: ${charId} | 级别: ${compliance.level || 'unknown'}`);
 
-      // 4.4: Nirath角色增强(仅Nirath模式)
+      // 4.4: 角色增强系统(仅Nirath模式)
       let nirathEnhancement = null;
       if (this.mode === 'nirath') {
         try {
           nirathEnhancement = this.modules.nirathCharacterEnhancer.enhance(charProfile, input.scenes?.[0]);
-          this.log('STAGE-4', `  ✅ NirathCharacterEnhancer: ${charId}`);
+          this.log('STAGE-4', `  ✅ 角色增强系统: ${charId}`);
         } catch (e) {
-          this.log('STAGE-4', `  ⚠️ NirathCharacterEnhancer失败: ${e.message}`);
+          this.log('STAGE-4', `  ⚠️ 角色增强系统失败: ${e.message}`);
         }
       }
 
