@@ -27,6 +27,23 @@ class ShotDebugRecorder {
     return filePath;
   }
 
+  getRecord(shotId) {
+    if (!this.enabled) return null;
+
+    const safeShotId = String(shotId || 'unknown').replace(/[^\w\-]/g, '_');
+    const filePath = path.join(this.outputDir, `${safeShotId}.json`);
+
+    if (!fs.existsSync(filePath)) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch (e) {
+      return null;
+    }
+  }
+
   append(shotId, partialPayload = {}) {
     if (!this.enabled) return null;
 
