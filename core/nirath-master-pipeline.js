@@ -72,6 +72,8 @@ const { OrientPrimordialCoreV24 } = require('../../shanhaijing-render-engine/ori
 const { CameraMovementSystem } = require('../../systems/camera-movement-system-v2.js');
 // 🔥 v6.2-fix: 引入v3镜头内时间轴生成器(恢复英雄之旅运镜复杂度)
 const { IntraShotTimelineGenerator, SHOT_SIZE_TRANSITIONS, LIGHTING_TRANSITIONS, SPEED_CURVES, TRANSITION_EFFECTS } = require('../../systems/camera-movement-system-v3.js');
+// 🔥 v6.6.5-v4: 引入v4 LLM驱动个性化时间轴系统
+const { CameraMovementSystemV4 } = require('../../systems/camera-movement-system-v4.js');
 const { NirathCharacterEnhancer, WorldSoulBinding } = require('../../systems/nirath-character-enhancement.js');
 const audit = require('../../systems/audit-logger'); // P1: 操作审计日志
 const { UniversalStyleInjector } = require('../../systems/universal-style-injector.js');
@@ -262,6 +264,18 @@ class NirathMasterPipeline {
       enabled: true,
       mode: 'smart', // 默认智能模式:分析缺失维度并补全
       sceneType: 'general'
+    });
+
+    // 🔥 v6.6.5-v4: 初始化LLM驱动个性化时间轴系统
+    this.cameraMovementV4 = new CameraMovementSystemV4({
+      llmOptions: {
+        model: 'kimi-k2p6',
+        maxTokens: 2048
+      },
+      toggleOptions: {
+        mode: 'auto', // auto/always/never
+        defaultMode: 'standard'
+      }
     });
 
     this.creativeIntensity = null; // 将在execute中解析
@@ -764,6 +778,9 @@ class NirathMasterPipeline {
 
       // Stage 5.5: FPV镜头智能决策(导演创作权)
       result.stages.fpvDecision = await runStage('STAGE-5.5', () => this.stageFPVDecision(result.stages.script));
+
+      // v6.5.64-fix: Stage 5.5B 角色出场分析（人物出场卡片系统）
+      result.stages.characterIntro = await runStage('STAGE-5.5B', () => this.stageCharacterIntroAnalysis(result.stages.script, input));
 
       // Stage 6: 时长分配
       result.stages.duration = await runStage('STAGE-6', () => this.stageDurationAllocation(result.stages.script, input));
@@ -2645,6 +2662,95 @@ ${isNirath
     };
   }
 
+  // ========== Stage 5.5B: 角色出场分析（人物出场卡片系统 v1.0）==========
+  async stageCharacterIntroAnalysis(script, input) {
+    this.log('STAGE-5.5B', '角色出场分析（人物出场卡片系统）');
+
+    const characters = input.characters || {};
+    const scenes = script.scenes || [];
+    const appearanceMap = {};
+    const introCards = [];
+
+    // 分析每个角色的首次出场
+    for (const scene of scenes) {
+      const sceneChars = scene.characters || [];
+      for (const charId of sceneChars) {
+        if (!appearanceMap[charId] && characters[charId]) {
+          appearanceMap[charId] = scene.id;
+          
+          // 标记首次出场
+          scene.isFirstAppearance = true;
+          scene.characterToIntroduce = charId;
+          
+          // 生成人物出场卡片
+          const char = characters[charId];
+          const card = {
+            enabled: true,
+            characterId: charId,
+            sceneId: scene.id,
+            displayStyle: input.introCardStyle || 'documentary',
+            displayTiming: '0-2s',
+            position: 'lower-third',
+            content: {
+              name: char.name || charId,
+              title: char.title || char.role || '主讲人',
+              subtitle: char.subtitle || ''
+            }
+          };
+          
+          scene.characterIntroCard = card;
+          introCards.push(card);
+          
+          this.log('STAGE-5.5B', `  ✅ ${charId} 首次出场: ${scene.id} | 卡片: ${card.content.name} | ${card.content.title}`);
+        }
+      }
+    }
+
+    // 清洗非首次出场的台词（移除自我介绍前缀）
+    for (const scene of scenes) {
+      if (scene.dialogue && !scene.isFirstAppearance) {
+        const originalDialogue = scene.dialogue;
+        scene.dialogue = this.cleanSelfIntroduction(scene.dialogue, characters);
+        if (originalDialogue !== scene.dialogue) {
+          this.log('STAGE-5.5B', `  🧹 ${scene.id} 台词清洗: 移除自我介绍 | 原: "${originalDialogue.substring(0, 40)}..." → 新: "${scene.dialogue.substring(0, 40)}..."`);
+        }
+      }
+    }
+
+    this.log('STAGE-5.5B', `✅ 角色出场分析完成 | 首次出场角色: ${Object.keys(appearanceMap).length}个 | 生成卡片: ${introCards.length}张`);
+    
+    return {
+      appearanceMap,
+      introCards,
+      totalCharacters: Object.keys(characters).length
+    };
+  }
+
+  // 清洗台词中的自我介绍前缀
+  cleanSelfIntroduction(dialogue, characters) {
+    if (!dialogue) return dialogue;
+    
+    let cleaned = dialogue;
+    const charNames = Object.values(characters).map(c => c.name || c.id).filter(Boolean);
+    
+    for (const charName of charNames) {
+      // 匹配各种自我介绍模式
+      const patterns = [
+        new RegExp(`^大家好，我是${charName}[，。.]\\s*`, 'g'),
+        new RegExp(`^我是${charName}[，。.]\\s*`, 'g'),
+        new RegExp(`^${charName}：\\s*`, 'g'),
+        new RegExp(`^这里是${charName}[，。.]\\s*`, 'g'),
+        new RegExp(`^我是${charName}，`, 'g'),
+      ];
+      
+      for (const pattern of patterns) {
+        cleaned = cleaned.replace(pattern, '');
+      }
+    }
+    
+    return cleaned.trim();
+  }
+
   // ========== Stage 6: 时长分配(集成ShotDurationAllocatorV2 + DurationCalculator双保险 + P1修复) ==========
   async stageDurationAllocation(script, input) {
     this.log('STAGE-6', '镜头时长分配(ShotDurationAllocatorV2 + DurationCalculator双保险)');
@@ -4336,6 +4442,7 @@ ${isNirath
     };
 
     const movements = [];
+    let previousShot = null; // 🔥 v6.6.5-v4: 用于镜头间连续性检查
     for (const shot of storyboard.shots) {
       let movement;
 
@@ -4400,11 +4507,52 @@ ${isNirath
           movement = this.modules.cameraMovement.generateMovement(shot);
         }
       } else {
-        // 🔥 v6.2-fix: 非FPV镜头使用v3完整运镜系统
-        if (this.mode === 'nirath') {
-          movement = this.generateV3CameraMovement(shot, timelineGenerator, sceneTypeToTransition, emotionToLighting, emotionToSpeedCurve);
+        // 🔥 v6.6.5-v4: 使用LLM驱动个性化时间轴系统（v4.0）
+        // 支持Nirath和Generic两种模式
+        const useV4 = true; // 可配置开关，默认启用v4
+        if (useV4 && this.cameraMovementV4) {
+          try {
+            const v4Result = await this.cameraMovementV4.generateIntraShotTimelineV4(
+              {
+                id: shot.id,
+                sceneName: (shot.scene || '').split('-')[0]?.trim() || shot.scene || 'default',
+                sceneDescription: shot.scene || shot.description || '',
+                duration: shot.duration || 5,
+                emotionPhase: shot.emotionPhase || 'neutral',
+                characters: shot.characters || [],
+                dialogue: shot.dialogue || '',
+                type: shot.type || 'dialogue'
+              },
+              previousShot,
+              { autoFix: true }
+            );
+            
+            if (v4Result.timeline) {
+              movement = {
+                timeline: v4Result.timeline,
+                v4Enabled: true,
+                v4Analysis: v4Result.analysis,
+                v4Continuity: v4Result.continuityCheck,
+                description: v4Result.timeline.strategy || 'LLM驱动个性化运镜'
+              };
+              this.log('STAGE-9', `  🎬 v4运镜: ${shot.id} | ${v4Result.timeline.strategy} | ${v4Result.timeline.segmentCount}段`);
+              
+              // 更新previousShot用于连续性检查
+              previousShot = { timeline: v4Result.timeline };
+            } else {
+              // v4未生成时间轴（Feature Toggle禁用），回退到v3
+              movement = this.generateV3CameraMovement(shot, timelineGenerator, sceneTypeToTransition, emotionToLighting, emotionToSpeedCurve);
+              previousShot = { timeline: movement.timeline };
+            }
+          } catch (e) {
+            this.log('STAGE-9', `  ⚠️ v4运镜失败: ${e.message} | 回退到v3`);
+            movement = this.generateV3CameraMovement(shot, timelineGenerator, sceneTypeToTransition, emotionToLighting, emotionToSpeedCurve);
+            previousShot = { timeline: movement.timeline };
+          }
         } else {
-          movement = this.modules.cameraMovement.generateMovement(shot);
+          // 回退到v3
+          movement = this.generateV3CameraMovement(shot, timelineGenerator, sceneTypeToTransition, emotionToLighting, emotionToSpeedCurve);
+          previousShot = { timeline: movement.timeline };
         }
       }
 
@@ -4415,8 +4563,9 @@ ${isNirath
     }
 
     const fpvCount = movements.filter(m => m.isFPV).length;
-    const v3Count = movements.filter(m => m.movement?.timeline?.segments?.length > 2).length;
-    this.log('STAGE-9', `✅ 运镜完成 | 镜头数: ${movements.length} | v3多段式: ${v3Count} | FPV: ${fpvCount} | 传统: ${movements.length - v3Count - fpvCount}`);
+    const v4Count = movements.filter(m => m.movement?.v4Enabled).length;
+    const v3Count = movements.filter(m => m.movement?.timeline?.segments?.length > 2 && !m.movement?.v4Enabled).length;
+    this.log('STAGE-9', `✅ 运镜完成 | 镜头数: ${movements.length} | v4个性化: ${v4Count} | v3多段式: ${v3Count} | FPV: ${fpvCount} | 传统: ${movements.length - v4Count - v3Count - fpvCount}`);
     return movements;
   }
 
@@ -5012,6 +5161,9 @@ ${isNirath
 
         const ambientSoundField = generateAmbientSoundField(shot, { maxChars: 80 });
 
+        // v6.5.64-fix2: 传入人物出场卡片（如果存在）
+        const characterIntroCard = shot.characterIntroCard || null;
+
         const renderResult = this.modules.renderCore.buildPromptV3({
           sceneName: shot.scene,
           script: enrichedScript,
@@ -5025,7 +5177,8 @@ ${isNirath
           mouthAction: shot.mouthAction,
           visualComplexity: shot.visualComplexity,
           importance: shot.importance,
-          styleConstraint
+          styleConstraint,
+          characterIntroCard // 传入人物出场卡片
         });
 
         prompt = renderResult.prompt;
@@ -6825,7 +6978,7 @@ ${isNirath
 
     // ==== P0关键修复:链路完整性反向验证 ====
     this.log('STAGE-16.5', '链路输出完整性反向验证(PipelineIntegrityValidator)');
-    const validator = new PipelineIntegrityValidator();
+    const validator = new PipelineIntegrityValidator({ mode: this.mode });
     const integrityResult = await validator.validatePipeline(stages);
 
     if (!integrityResult.valid) {
@@ -6873,7 +7026,70 @@ ${isNirath
     };
 
     this.log('STAGE-16', `✅ 最终输出 | 镜头数: ${output.prompts?.length || 0} | 完整性验证: ${integrityResult.valid ? '通过' : '未通过'}`);
+
+    // v6.5.64-P3: 保存输出到文件
+    try {
+      const fss = require('fs');
+      const path = require('path');
+      const outputDir = this.outputDir || path.join(process.cwd(), 'output');
+      
+      // 确保输出目录存在
+      if (!fss.existsSync(outputDir)) {
+        fss.mkdirSync(outputDir, { recursive: true });
+      }
+      
+      // 保存完整结果 JSON
+      const resultPath = path.join(outputDir, 'preproduction-result.json');
+      fss.writeFileSync(resultPath, JSON.stringify(output, null, 2), 'utf-8');
+      this.log('STAGE-16', `💾 结果已保存: ${resultPath}`);
+      
+      // 保存 Markdown 报告
+      const reportPath = path.join(outputDir, 'preproduction-report.md');
+      const report = this._generateMarkdownReport(output, integrityResult);
+      fss.writeFileSync(reportPath, report, 'utf-8');
+      this.log('STAGE-16', `📝 报告已保存: ${reportPath}`);
+      
+      output.outputDir = outputDir;
+      output.resultPath = resultPath;
+      output.reportPath = reportPath;
+    } catch (e) {
+      this.log('STAGE-16', `⚠️ 文件保存失败: ${e.message}`, 'error');
+    }
+
     return output;
+  }
+
+  /**
+   * 生成 Markdown 格式预生产报告
+   */
+  _generateMarkdownReport(output, integrityResult) {
+    const shots = output.storyboard?.shots || output.prompts || [];
+    const totalDuration = shots.reduce((s, x) => s + (x.duration || 0), 0);
+    
+    let md = `# 预生产报告\n\n`;
+    md += `> 生成时间: ${new Date().toISOString()}\n\n`;
+    md += `## 概要\n\n`;
+    md += `- 镜头数: ${shots.length}\n`;
+    md += `- 总时长: ${totalDuration}秒\n`;
+    md += `- 完整性验证: ${integrityResult.valid ? '✅ 通过' : '❌ 未通过'}\n`;
+    md += `- 检查项: ${integrityResult.summary?.passed || 0}/${integrityResult.summary?.totalChecks || 0}\n\n`;
+    
+    md += `## 镜头列表\n\n`;
+    md += `| 镜号 | 类型 | 时长 | 场景 |\n`;
+    md += `|------|------|------|------|\n`;
+    for (const shot of shots) {
+      md += `| ${shot.shotId || shot.id || '-'} | ${shot.type || '-'} | ${shot.duration || 0}s | ${shot.scene || '-'} |\n`;
+    }
+    md += `\n`;
+    
+    md += `## 验证详情\n\n`;
+    if (integrityResult.checks) {
+      for (const check of integrityResult.checks) {
+        md += `- ${check.passed ? '✅' : '❌'} ${check.stage}: ${check.name}\n`;
+      }
+    }
+    
+    return md;
   }
 
   // ========== 辅助方法:自动重试失败的Stage ==========
@@ -6916,7 +7132,7 @@ ${isNirath
     // 重试后再次验证
     if (success) {
       this.log('RETRY', '🔄 重试后执行二次验证...');
-      const revalidator = new PipelineIntegrityValidator();
+      const revalidator = new PipelineIntegrityValidator({ mode: this.mode });
       const recheck = await revalidator.validatePipeline(stages);
       if (!recheck.valid) {
         this.log('RETRY', `⚠️ 二次验证仍有${recheck.summary.errorCount}个错误`, 'error');
