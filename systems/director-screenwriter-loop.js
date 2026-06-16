@@ -17,7 +17,7 @@
  * @author 系统
  */
 
-const { DirectorFinalReview } = require('./director-final-review.js');
+const { DirectorFinalReview } = require('./nirath/director-final-review.js');
 const { ContinuityEngine } = require('./continuity-engine.js');
 const { DialogueConsistencyEngine } = require('./dialogue-consistency-engine.js');
 const { ScreenwriterOptimizer } = require('./screenwriter-optimizer.js');

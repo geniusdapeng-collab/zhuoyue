@@ -5171,7 +5171,7 @@ ${isNirath
           }
         }
 
-        const ambientSoundField = generateAmbientSoundField(shot, { maxChars: 80 });
+        const ambientSoundField = generateAmbientSoundField(shot, { maxChars: 80, mode: this.mode });
 
         // v6.6.9.4-fix: Generic模式使用干净的styleConstraint
         const styleConstraint = this.mode === 'nirath' ? {
