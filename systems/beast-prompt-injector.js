@@ -9,7 +9,7 @@
  * - 一致性检查（颜色/形态/能力）
  * 
  * @version v1.0
- * @author 小G
+ * @author 系统
  */
 
 const fs = require('fs');

@@ -10,7 +10,7 @@
  * - 生成合规报告
  * 
  * @version v1.0
- * @author 小G
+ * @author 系统
  */
 
 class ComplianceChecker {

@@ -7,7 +7,7 @@
  * 3. 执行摘要生成（关键节点聚合，减少消息数量）
  * 
  * @version v1.0
- * @author 小G
+ * @author 系统
  */
 
 const fs = require('fs');

@@ -2,7 +2,7 @@
  * 预生产报告生成器 (Pre-production Report Generator)
  * 在提交Seedance渲染前，生成完整的审查文档交付队长人工检查
  * @version v1.0
- * @author 小G
+ * @author 系统
  */
 
 const fs = require('fs').promises;

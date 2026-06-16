@@ -12,7 +12,7 @@
  * const result = await checkpoint.runStage('STAGE-5', async () => { ... }, inputHash);
  * 
  * @version v1.0
- * @author 小G
+ * @author 系统
  */
 
 const fs = require('fs');
