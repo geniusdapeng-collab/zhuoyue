@@ -2051,6 +2051,7 @@ class NirathMasterPipeline {
       } else {
         // v6.6.9.4-fix: LLM批次失败，不再降级，直接报错
         throw new Error(`STAGE-5A 批次 ${batchIdx + 1} 失败: ${result.error} | 已触发重试机制但仍失败，终止预生产`);
+      }
 
       if (global.gc) global.gc();
     }
@@ -5120,19 +5121,7 @@ ${isNirath
       if (this.mode === 'nirath') {
         // Nirath模式:调用Nirath渲染核心v24.3(风格前置化)
         // 🔥 v24.3: 风格约束包作为输入传入,确保Prompt第一句话就受Nirath美学约束
-        const styleConstraint = {
-          // v6.2-patch61-fix: 清理遗留技术规格(UE5/Lumen/Nanite等),Seedance原生理解无需引擎声明
-          // v6.2-patch62-fix: 英文技术词替换为中文等效描述
-          // v6.2-patch63-fix: visualAnchor和lightingSpec也中文化
-          nirathTechTail: '超写实数字渲染, 影视级画面构图, 体积光照明, 空气透视感, 皮肤与材质微距摄影级细节, 写实风格, 外星繁茂植被覆盖岩石地表, 背景可见奇异生物活动。',
-          // ✅ v6.2-patchXX: 背景环境质感(全局注入)
-          // 人物与异兽保持CG超写实,背景环境采用实景拍摄质感
-          environmentRealism: '背景环境采用实景拍摄质感, 物理真实世界, 35mm胶片颗粒, 轻微噪点, 4K高清, 电影质感, 细节清晰, 色彩自然, 非CG渲染感, 真实光影与大气透视。',
-          bannedKeywords: ['中国风','古风','传统','水墨','国风','仙侠','武侠','chinese style','traditional chinese','ink wash','oriental','lo-fi','anime','cartoon','cartoony','stylized','toon'],
-          visualAnchor: 'Nirath异世界, 超写实科幻生态系统, 非地球生物, 繁茂植被与奇异发光植物覆盖地表, 活跃的外星生物可见,',
-          lightingSpec: '双恒星琥珀-紫罗兰光照形成玫瑰金阴影, 生物发光补光柔和脉动。',
-          disclaimer: 'NO Chinese traditional symbols (yin-yang, bagua, taiji, wuxing). NO anime/cartoon style. NO ink wash painting. NO traditional Chinese architecture or clothing.'
-        };
+        // v6.6.9.4-fix: styleConstraint已在外部统一定义
 
         // 🔥 v24.4-fix: 丰富script参数,合并更多场景数据以扩展核心叙事长度
         // v6.2-patch61-fix: 旁白文本绝不进入视觉Prompt,严格分离通道
@@ -5186,6 +5175,25 @@ ${isNirath
         }
 
         const ambientSoundField = generateAmbientSoundField(shot, { maxChars: 80 });
+
+        // v6.6.9.4-fix: Generic模式使用干净的styleConstraint
+        const styleConstraint = this.mode === 'nirath' ? {
+          // Nirath专属风格约束（保持不变）
+          nirathTechTail: '超写实数字渲染, 影视级画面构图, 体积光照明, 空气透视感, 皮肤与材质微距摄影级细节, 写实风格, 外星繁茂植被覆盖岩石地表, 背景可见奇异生物活动。',
+          environmentRealism: '背景环境采用实景拍摄质感, 物理真实世界, 35mm胶片颗粒, 轻微噪点, 4K高清, 电影质感, 细节清晰, 色彩自然, 非CG渲染感, 真实光影与大气透视。',
+          bannedKeywords: ['中国风','古风','传统','水墨','国风','仙侠','武侠','chinese style','traditional chinese','ink wash','oriental','lo-fi','anime','cartoon','cartoony','stylized','toon'],
+          visualAnchor: 'Nirath异世界, 超写实科幻生态系统, 非地球生物, 繁茂植被与奇异发光植物覆盖地表, 活跃的外星生物可见,',
+          lightingSpec: '双恒星琥珀-紫罗兰光照形成玫瑰金阴影, 生物发光补光柔和脉动。',
+          disclaimer: 'NO Chinese traditional symbols (yin-yang, bagua, taiji, wuxing). NO anime/cartoon style. NO ink wash painting. NO traditional Chinese architecture or clothing.'
+        } : {
+          // Generic模式：干净的专业风格约束，无Nirath元素
+          nirathTechTail: '超写实数字渲染, 影视级画面构图, 体积光照明, 空气透视感, 皮肤与材质微距摄影级细节, 写实风格, 自然光照, 真实场景',
+          environmentRealism: '背景环境采用实景拍摄质感, 物理真实世界, 35mm胶片颗粒, 轻微噪点, 4K高清, 电影质感, 细节清晰, 色彩自然, 非CG渲染感, 真实光影与大气透视',
+          bannedKeywords: ['anime','cartoon','cartoony','stylized','toon'],
+          visualAnchor: '真实世界场景, 专业摄影质感, 自然光照, 写实风格',
+          lightingSpec: '自然光照明, 柔和阴影, 真实光影',
+          disclaimer: 'NO anime/cartoon style. NO stylized rendering.'
+        };
 
         // v6.5.64-fix2: 传入人物出场卡片（如果存在）
         const characterIntroCard = shot.characterIntroCard || null;

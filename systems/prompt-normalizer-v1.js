@@ -17,7 +17,9 @@ class PromptNormalizer {
     }
 
     // 2. 智能补漏
-    if (!normalized.ACTION && raw.narration) normalized.ACTION = this._toText(raw.narration);
+    if (!normalized.DIALOGUE && raw.dialogue) normalized.DIALOGUE = this._toText(raw.dialogue);
+    if (!normalized.DIALOGUE && raw.narration) normalized.DIALOGUE = this._toText(raw.narration);
+    if (!normalized.ACTION && raw.action) normalized.ACTION = this._toText(raw.action);
     if (!normalized.SCENE && raw.visualPrompt) normalized.SCENE = this._toText(raw.visualPrompt);
     if (!normalized.CAMERA && raw.cameraMovement) normalized.CAMERA = this._toText(raw.cameraMovement);
     if (!normalized.LIGHTING && raw.lighting) normalized.LIGHTING = this._toText(raw.lighting);

@@ -5,6 +5,7 @@
 
 const PROMPT_FIELDS = [
   'CHARACTER',
+  'DIALOGUE',
   'ACTION',
   'SCENE',
   'MOOD',
@@ -18,6 +19,7 @@ const PROMPT_FIELDS = [
 
 const FIELD_DEFAULTS = {
   CHARACTER: '',
+  DIALOGUE: '',
   ACTION: '',
   SCENE: '',
   MOOD: '',

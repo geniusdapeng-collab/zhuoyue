@@ -5,7 +5,7 @@ const path = require('path');
 // 此文件用于修复 generic 模式（健康科普等）调用片头系统时错误注入 Nirath 元素的问题
 // 修改点：generateOpeningV3 增加 mode 检测，非 Nirath 时生成干净专业片头
 
-const originalSystem = require('./systems/opening-system-v3.js');
+const originalSystem = require('./opening-system-v3.js');
 
 // ===== Generic 片头生成器 =====
 function generateGenericOpening(config) {
