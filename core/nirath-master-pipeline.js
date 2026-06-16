@@ -53,9 +53,8 @@ const { CreativeIntensityIndex } = require('../systems/creative-intensity-index.
 const { CreativeIntensityRecommender } = require('../systems/creative-intensity-recommender.js');
 
 // ========== 新增:片头系统集成(v3.0-patch5) ==========
-// v6.6.9.4-fix: generic模式使用通用片头系统，Nirath模式使用山海经片头系统
-const OpeningSystemNirath = require('../systems/opening-system-v3.js');
-const OpeningSystemGeneric = require('../systems/opening-system-v3-generic.js');
+// v6.6.9.4-patch9: 移除山海经专属片头，统一使用通用片头系统
+const OpeningSystem = require('../systems/opening-system-v3.js');
 const { CharacterManagerV2 } = require('../systems/character-manager-v2.js');
 const { CharacterPromptBuilder } = require('../systems/character-prompt-builder.js');
 const { CharacterComplianceChecker } = require('../systems/character-compliance-checker.js');
@@ -4021,8 +4020,8 @@ ${isNirath
       const openingConfig = this.extractOpeningConfig(input, storyboard, characters);
 
       // 调用片头系统生成Prompt
-      // v6.6.9.4-fix: 根据mode选择片头系统
-      const openingSystem = this.mode === 'nirath' ? OpeningSystemNirath : OpeningSystemGeneric;
+      // v6.6.9.4-patch9: 统一使用通用片头系统，山海经版本已移除
+      const openingSystem = OpeningSystem;
       const openingResult = openingSystem.generateOpeningV3(openingConfig);
 
       this.log('STAGE-7.5', `✅ 片头生成完成 | Prompt: ${openingResult.promptLength}/988字符 | 时长: ${openingResult.duration}秒`);
