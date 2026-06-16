@@ -159,7 +159,8 @@ class FinalPromptBuilderV3 {
   _mergeFields(subsystemFields, llmFields, shot) {
     return {
       CHARACTER: subsystemFields.CHARACTER || llmFields.CHARACTER || (shot.characters || []).join('，'),
-      ACTION: subsystemFields.ACTION || llmFields.ACTION || shot.dialogue || shot.narration || shot.action || '',
+      DIALOGUE: subsystemFields.DIALOGUE || llmFields.DIALOGUE || shot.dialogue || shot.narration || '',
+      ACTION: subsystemFields.ACTION || llmFields.ACTION || shot.action || '',
       SCENE: subsystemFields.SCENE || llmFields.SCENE || shot.visualPrompt || shot.scene || '',
       MOOD: subsystemFields.MOOD || llmFields.MOOD || shot.emotionPhase || '',
       CAMERA: subsystemFields.CAMERA || llmFields.CAMERA || shot.camera || '',

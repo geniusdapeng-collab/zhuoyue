@@ -53,7 +53,9 @@ const { CreativeIntensityIndex } = require('../systems/creative-intensity-index.
 const { CreativeIntensityRecommender } = require('../systems/creative-intensity-recommender.js');
 
 // ========== 新增:片头系统集成(v3.0-patch5) ==========
-const OpeningSystem = require('../systems/opening-system-v3.js');
+// v6.6.9.4-fix: generic模式使用通用片头系统，Nirath模式使用山海经片头系统
+const OpeningSystemNirath = require('../systems/opening-system-v3.js');
+const OpeningSystemGeneric = require('../systems/opening-system-v3-generic.js');
 const { CharacterManagerV2 } = require('../systems/character-manager-v2.js');
 const { CharacterPromptBuilder } = require('../systems/character-prompt-builder.js');
 const { CharacterComplianceChecker } = require('../systems/character-compliance-checker.js');
@@ -925,9 +927,9 @@ class NirathMasterPipeline {
 
         // 准备 PromptForge 输入数据
         const projectConfig = {
-          beastId: this.beastId || 'bai-ze',
-          theme: this.theme || '心灵碰撞',
-          emotionBase: this.emotionBase || '敬畏',
+          beastId: this.beastId || '',
+          theme: this.theme || '科普主题',
+          emotionBase: this.emotionBase || '专业',
           titlePlan: this.titlePlan || {}
         };
 
@@ -1443,7 +1445,7 @@ class NirathMasterPipeline {
     // Nirath模式:注入Nirath世界观
     if (this.mode === 'nirath') {
       prd.world.nirathWorld = {
-        planet: 'Nirath',
+        planet: isNirath ? 'Nirath' : (input.world?.planet || 'Earth'),
         era: 'Post-Convergence Era',
         dualStar: true,
         bioluminescentEcosystem: true
@@ -1853,9 +1855,8 @@ class NirathMasterPipeline {
         throw new Error('剧本Agent未配置');
       }
     } catch (e) {
-      // 如果LLM同步生成失败,使用结构化fallback
-      this.log('STAGE-5', `⚠️ 剧本Agent不可用,使用结构化fallback: ${e.message}`);
-      script = this._fallbackScript(input);
+      // v6.6.9.4-fix: LLM失败不再降级，直接报错终止
+      throw new Error(`STAGE-5 剧本生成失败: ${e.message} | 已触发重试机制但仍失败，终止预生产`);
     }
 
     return script;
@@ -2049,22 +2050,8 @@ class NirathMasterPipeline {
         results.push(...normalized);
         this.log('STAGE-5A', `✅ 批次 ${batchIdx + 1} 成功`);
       } else {
-        this.log('STAGE-5A', `⚠️ 批次 ${batchIdx + 1} 失败: ${result.error}`);
-
-        const fallback = batch.map((scene) => ({
-          ...scene,
-          scene: scene.name || '',
-          // v6.5.34-fix: 全局禁用narration,只保留dialogue
-          dialogue: this._buildFallbackDialogue(scene, input.characters),
-          narration: '', // v6.5.34: narration已禁用,置空
-          mouthAction: 'speaking_normal',
-          emotionPhase: this._inferEmotionPhase(scene),
-          scriptCoreSuccess: false,
-          scriptCoreError: result.error
-        }));
-
-        results.push(...fallback);
-      }
+        // v6.6.9.4-fix: LLM批次失败，不再降级，直接报错
+        throw new Error(`STAGE-5A 批次 ${batchIdx + 1} 失败: ${result.error} | 已触发重试机制但仍失败，终止预生产`);
 
       if (global.gc) global.gc();
     }
@@ -4030,7 +4017,9 @@ ${isNirath
       const openingConfig = this.extractOpeningConfig(input, storyboard, characters);
 
       // 调用片头系统生成Prompt
-      const openingResult = OpeningSystem.generateOpeningV3(openingConfig);
+      // v6.6.9.4-fix: 根据mode选择片头系统
+      const openingSystem = this.mode === 'nirath' ? OpeningSystemNirath : OpeningSystemGeneric;
+      const openingResult = openingSystem.generateOpeningV3(openingConfig);
 
       this.log('STAGE-7.5', `✅ 片头生成完成 | Prompt: ${openingResult.promptLength}/988字符 | 时长: ${openingResult.duration}秒`);
 
@@ -4087,14 +4076,16 @@ ${isNirath
    * 提取片头配置
    */
   extractOpeningConfig(input, storyboard, characters) {
+    const isNirath = this.mode === 'nirath';
     const config = {
-      episodeTitle: input.projectName || input.title || '山海经:异兽志',
-      seriesTitle: input.seriesTitle || '山海经:异兽志',
-      episodeNumber: input.episodeNumber || input.episode || 'EP02',
-      featuredBeastId: input.beastId || input.core?.beastId || input.theme || '',
-      protagonistId: input.protagonistId || (this.mode === 'nirath' ? 'xiaoG' : 'presenter'),
+      // v6.6.9.4-fix: generic模式默认值改为中性，不再硬编码山海经
+      episodeTitle: input.projectName || input.title || (isNirath ? '山海经:异兽志' : '未命名视频'),
+      seriesTitle: input.seriesTitle || (isNirath ? '山海经:异兽志' : ''),
+      episodeNumber: input.episodeNumber || input.episode || 'EP01',
+      featuredBeastId: isNirath ? (input.beastId || input.core?.beastId || input.theme || '') : '',
+      protagonistId: input.protagonistId || (isNirath ? 'xiaoG' : 'presenter'),
       duration: input.openingDuration || 9,
-      mood: input.mood || 'mysterious',
+      mood: input.mood || (isNirath ? 'mysterious' : 'professional'),
       // v2.2-fix: 从input.characters中提取角色定妆照数据
       characters: input.characters || {},
       portraits: {}
@@ -4577,9 +4568,8 @@ ${isNirath
               previousShot = { timeline: movement.timeline };
             }
           } catch (e) {
-            this.log('STAGE-9', `  ⚠️ v4运镜失败: ${e.message} | 回退到v3`);
-            movement = this.generateV3CameraMovement(shot, timelineGenerator, sceneTypeToTransition, emotionToLighting, emotionToSpeedCurve);
-            previousShot = { timeline: movement.timeline };
+            // v6.6.9.4-fix: LLM运镜失败不再降级到v3，直接报错
+            throw new Error(`STAGE-9 v4运镜失败: ${e.message} | 镜头: ${shot.id} | 已触发重试机制但仍失败，终止预生产`);
           }
         } else {
           // 回退到v3
@@ -5551,10 +5541,12 @@ ${isNirath
             this.log('STAGE-11', `  🚀 新链路已接管: ${shot.id} | 类型:${shot.type} | 长度:${prompt.length} | 10字段结构`);
             gotoFinalSubmit = true;
           } else {
-            this.log('STAGE-11', `  ⚠️ 新链路失败,fallback到旧链路: ${shot.id} | 原因:${newChainResult.validation?.issues?.join('; ') || '未知'}`);
+            // v6.6.9.4-fix: 新链路失败不再降级到旧链路，直接报错
+            throw new Error(`STAGE-11 新链路失败: ${shot.id} | 原因:${newChainResult.validation?.issues?.join('; ') || '未知'} | 已触发重试机制但仍失败，终止预生产`);
           }
         } catch (e) {
-          this.log('STAGE-11', `  ⚠️ 新链路异常,fallback到旧链路: ${shot.id} | ${e.message}`);
+          // v6.6.9.4-fix: 新链路异常不再降级，直接报错
+          throw new Error(`STAGE-11 新链路异常: ${shot.id} | ${e.message} | 已触发重试机制但仍失败，终止预生产`);
         }
       }
 

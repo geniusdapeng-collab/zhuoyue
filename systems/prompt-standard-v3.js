@@ -34,6 +34,24 @@ const FIELD_DEFINITIONS = {
     ]
   },
 
+  DIALOGUE: {
+    name: '台词/对白',
+    weight: 1.0,
+    blockMapping: [
+      '【DIALOGUE】',
+      '【台词】',
+      '【对白】',
+      '【旁白/台词】'
+    ],
+    patterns: [
+      /【DIALOGUE】/i,
+      /【台词】/i,
+      /【对白】/i,
+      /【旁白\/台词】/i,
+      /(?:dialogue|台词|对白|旁白| narration|voiceover)/i
+    ]
+  },
+
   ACTION: {
     name: '动作',
     weight: 1.0,
@@ -147,15 +165,13 @@ const FIELD_DEFINITIONS = {
     blockMapping: [
       '【AUDIO】',
       '【音频】',
-      '【环境音效】',
-      '【旁白\/台词】'
+      '【环境音效】'
     ],
     patterns: [
       /【AUDIO】/i,
       /【音频】/i,
       /【环境音效】/i,
-      /【旁白\/台词】/i,
-      /(?:sound|audio|ambient|voice|music|海浪|风声|虫鸣|音效|环境音|伴随|氛围弥漫)/i
+      /(?:sound|audio|ambient|music|海浪|风声|虫鸣|音效|环境音)/i
     ]
   },
 
