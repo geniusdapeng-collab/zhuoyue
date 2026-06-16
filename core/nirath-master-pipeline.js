@@ -1819,8 +1819,7 @@ class NirathMasterPipeline {
               scene: shot.beatName || 'scene',
               narration: shot.narration || '',
               type: shot.beatName || 'explanation',
-              characters: ['xiaoG', input.beastId || beastProfile.id || 'beast'],
-              mouthAction: shot.mouthAction || this.generateDefaultMouthAction(shot.beatName, idx === 0),
+              characters: [input.protagonistId || 'presenter', input.beastId || beastProfile.id || ''],
               emotionPhase: shot.emotionTarget?.emotion || 'neutral',
               importance: this.calculateImportance(shot.beatName, idx, scResult.storyboard.shots.length),
               visualComplexity: this.calculateVisualComplexity(shot.beatName),
@@ -3016,7 +3015,7 @@ ${isNirath
               duration: finalDuration,
               type: shot.beatName || 'explanation',
               shotType: shot.shotType || this._deriveShotType(index, scResult.storyboard.shots.length, shot.beatName), // v6.2-patch65: 传递叙事弧线标记
-              characters: ['xiaoG', input.beastId || beastProfile.id || 'beast'],
+              characters: [input.protagonistId || 'presenter', input.beastId || beastProfile.id || ''],
               mouthAction: shot.mouthAction || (index === 0 ? '嘴部自然闭合,面对镜头' : '嘴部自然闭合'),
               emotionPhase: shot.emotionTarget?.emotion || 'neutral',
               importance: durations && durations[index] ? durations[index].importance : 5,
@@ -3319,7 +3318,11 @@ ${isNirath
 
     // v6.6.9-fix: Nirath模式追加xiaoG角色推断
     if (this.mode === 'nirath') {
+      // v6.6.9-fix: Nirath模式追加xiaoG角色推断
       genericChars.push({ id: 'xiaoG', keywords: ['小G', '小g', '男孩', ' protagonist', '主角'] });
+    } else {
+      // v6.6.9.4-fix: generic模式追加presenter角色推断
+      genericChars.push({ id: input.protagonistId || 'presenter', keywords: ['主讲人', '讲解者', 'presenter', '主持人'] });
     }
 
     for (const char of genericChars) {

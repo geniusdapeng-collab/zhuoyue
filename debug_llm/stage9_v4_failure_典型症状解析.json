@@ -1,0 +1,59 @@
+{
+  "time": "2026-06-16T16:13:00.517Z",
+  "sceneAnalysis": {
+    "spaceSize": "medium",
+    "sceneType": "dialogue",
+    "sceneTypeName": "对话",
+    "segmentCount": 3,
+    "constraints": {
+      "minSize": "medium",
+      "maxSize": "wide",
+      "forbidden": [
+        "extreme_wide"
+      ],
+      "preferred": [
+        "medium",
+        "close_up"
+      ],
+      "defaultSize": "medium"
+    },
+    "movementStyle": "stable",
+    "characterCount": 1,
+    "duration": 15,
+    "shotId": "典型症状解析",
+    "dialogue": "横纹肌溶解最典型的症状，大家记住这三个信号。第一，肌肉剧烈酸痛、肿胀，按压发硬；第二，尿液颜色明显加深，像浓茶或酱油色；第三，全身乏力，伴随恶心呕吐。出现这三种情况，尤其是剧烈运动后，千万别硬扛。",
+    "emotionPhase": "tension"
+  },
+  "result": {
+    "success": true,
+    "content": "{\n  \"strategy\": \"压迫式三阶递进\",\n  \"reasoning\": \"在15秒医学警示独白中，景别由中景向特写收敛，运动轨迹从正向推进转为微幅震颤再变为环绕包围，利用镜头物理空间的侵占性模拟病症对机体的侵蚀，强化tension情绪下的心理压迫与指令记忆。\",\n  \"segments\": [\n    {\n      \"timeRange\": \"0-5s\",\n      \"shotSize\": \"medium\",\n      \"movement\": \"轨道直轨前移40厘米，同步下压俯角5度\",\n      \"speed\": \"8厘米/秒\",\n      \"reason\": \"以稳定中景缓慢逼近建立权威叙述场域，缩短物理距离暗示症状正在逼近身体，对应肌肉剧痛与肿胀的第一信号。\"\n    },\n    {\n      \"timeRange\": \"5-10s\",\n      \"shotSize\": \"close_up\",\n      \"movement\": \"手持横向不规则晃动振幅2厘米，纵向浮动1厘米/秒\",\n      \"speed\": \"1.5厘米/秒\",\n      \"reason\": \"切至特写并引入低频震颤，视觉上隐喻患者体内代谢紊乱与生理不适，对应尿液变色与全身乏力的内在危急信号。\"\n    },\n    {\n      \"timeRange\": \"10-15s\",\n      \"shotSize\": \"close_up\",\n      \"movement\": \"轨道顺时针环绕主体移动60度，径向再逼近15厘米\",\n      \"speed\": \"12度/秒\",",
+    "reasoning_content": "用户要求生成一个合法的JSON对象，用于3段运镜方案。需要严格遵循以下要求：\n\n1. 只输出合法JSON，不要markdown，不要解释，不要额外文本\n2. 场景: 未命名\n3. 类型: 对话\n4. 时长: 15秒\n5. 情绪: tension\n6. 人物: 无\n7. 台词: 关于横纹肌溶解症状的医学科普内容\n8. 限制: 可用景别[medium, close_up], 禁用[extreme_wide]\n9. JSON字段: strategy, reasoning, segments\n10. segments每项字段: timeRange, shotSize, movement, speed, reason\n11. movement必须含具体数字(厘米/度/秒)\n12. strategy必须是具体名称，不得写\"策略名\"\n\n我需要设计一个15秒的3段式运镜方案，情绪是tension（紧张感），对话类型，讲医学症状。\n\n考虑到情绪是tension，镜头应该有压迫感、渐进式推进或手持晃动感。但因为是医学科普对话，可能是一个医生在讲解。\n\n3段时间加起来应该是15秒。可以分配为：\n- 第1段：0-5秒\n- 第2段：5-10秒\n- 第3段：10-15秒\n\n景别只能用 medium 和 close_up。\n\n策略名称要具体，比如\"渐进压迫式推轨\"之类的。\n\nmovement 必须含具体数字，比如\"推轨前移30厘米\"或\"手持晃动振幅2厘米/秒\"等。\n\n让我设计：\n\nstrategy: \"医学警示渐进推轨\"\nreasoning: \"通过景别从medium逐步收紧至close_up，配合稳定的推轨运动，在医学科普的理性氛围中构建隐性压迫感，让观众注意力从环境聚焦到症状细节描述，强化'tension'情绪下的信息权威性与紧迫性。\"\n\nsegments:\n1. timeRange: \"0-5s\", shotSize: \"medium\", movement: \"轨道前移40厘米，机位高度下降15厘米\", speed: \"5厘米/秒\", reason: \"开场建立叙述者中景，缓慢推进制造逼近感，对应第一症状的引入\"\n2. timeRange: \"5-10s\", shotSize: \"close_up\", movement: \"手持微晃振幅1.5厘米/秒，焦点保持眼部\", speed: \"极低速\", reason: \"切至特写放大紧张感，轻微不稳定感暗示身体危机，对应尿液变色等严重症状描述\"\n3. timeRange: \"10-15s\", shotSize: \"close_up\", movement: \"环绕主体顺时针旋转15度/秒，同时推轨前移20厘米\", speed: \"15度/秒，4厘米/秒\", reason: \"环绕特写制造视觉压迫与无路可退感，强化'千万别硬扛'的警示结论\"\n\n等等，我需要确保movement和speed都包含具体数字。让我再检查一下。\n\n第1段：\nmovement: \"轨道匀速前移40厘米，机位同步下降10厘米\"\nspeed: \"8厘米/秒\"\nreason: \"从叙述者中景缓慢逼近，建立权威压迫感，配合第一、二症状的列举\"\n\n第2段：\ntimeRange: \"5-10s\"\nshotSize: \"close_up\"\nmovement: \"手持微震横向偏移2厘米，纵向浮动1厘米\"\nspeed: \"1.5厘米/秒\"\nreason: \"切换特写并引入轻微不规则运动，模拟患者生理不适的隐喻，强调尿液颜色加重的危急信号\"\n\n第3段：\ntimeRange: \"10-15s\"\nshotSize: \"close_up\"\nmovement: \"轨道顺时针环绕主体移动60度\"\nspeed: \"12度/秒\"\nreason: \"在警告性结语时以环绕特写锁死视线，消除环境安全感，迫使观众直面'别硬扛'的紧迫指令\"\n\n让我检查总时长：\n0-5s: 5秒\n5-10s: 5秒\n10-15s: 5秒\n总共15秒。合理。\n\n景别：medium, close_up, close_up。符合限制。\n\n情绪tension通过推进、手持微震、环绕来体现。\n\n台词内容分配：\n0-5s: \"横纹肌溶解最典型的症状，大家记住这三个信号。第一，肌肉剧烈酸痛、肿胀，按压发硬；\"\n5-10s: \"第二，尿液颜色明显加深，像浓茶或酱油色；第三，全身乏力，\"\n10-15s: \"伴随恶心呕吐。出现这三种情况，尤其是剧烈运动后，千万别硬扛。\"\n\n这样分配合理。\n\nJSON格式检查：\n- 外层：strategy (string), reasoning (string), segments (array)\n- segments每项：timeRange (string), shotSize (string), movement (string), speed (string), reason (string)\n- strategy必须具体，不能是\"策略名\"\n\n我需要确保JSON合法：双引号包裹，逗号正确，没有尾随逗号。\n\n再优化一下具体数值和描述：\n\nstrategy: \"压迫式三阶递进\"\nreasoning: \"在15秒医学警示独白中，通过景别由中景向特写收敛，运动轨迹从正向推进转为微幅震颤再变为环绕包围，利用镜头物理空间的侵占性模拟病症对身体的侵蚀过程，强化tension情绪下观众的心理压迫与记忆留存。\"\n\nsegment 1:\ntimeRange: \"0-5s\"\nshotSize: \"medium\"\nmovement: \"轨道直轨前移40厘米，镜头俯角增加5度\"\nspeed: \"8厘米/秒\"\nreason: \"开场以稳定中景推进建立权威叙述场域，缓慢缩短物理距离暗示症状正在逼近身体，对应第一信号的肌肉剧痛描述\"\n\nsegment 2:\ntimeRange: \"5-10s\"\nshotSize: \"close_up\"\nmovement: \"手持横向晃动振幅2厘米，纵向偏移频率0.5赫兹\"\nspeed: \"1厘米/秒\"\nreason: \"切至特写并引入低频不规则晃动，视觉上模拟患者体内的紊乱与不适，对应浓茶色尿液与乏力这两个内在危急信号\"\n\nsegment 3:\ntimeRange: \"10-15s\"\nshotSize: \"close_up\"\nmovement: \"轨道环绕主体顺时针移动60度，径向距离再逼近15厘米\"\nspeed: \"12度/秒，3厘米/秒\"\nreason: \"以环绕特写锁死视觉出口，消除观众的安全距离，在'千万别硬扛'的警示句上形成空间包围感，完成情绪压迫的顶点\"\n\n检查：\n- strategy具体吗？是的，\"压迫式三阶递进\"\n- movement都含数字吗？是的，40厘米、5度、2厘米、0.5赫兹（频率不是速度，但 movement 描述含数字即可？等等，speed也需要含数字。让我看看。\n  - segment 1 movement: \"轨道直轨前移40厘米，镜头俯角增加5度\" — 有40厘米、5度。speed: \"8厘米/秒\" — 有数字。\n  - segment 2 movement: \"手持横向晃动振幅2厘米，纵向偏移频率0.5赫兹\" — 有2厘米、0.5。但\"纵向偏移频率0.5赫兹\"描述的是频率不是速度。speed: \"1厘米/秒\" — 有数字。\n  - segment 3 movement: \"轨道环绕主体顺时针移动60度，径向距离再逼近15厘米\" — 有60度、15厘米。speed: \"12度/秒，3厘米/秒\" — 有数字。\n\n看起来没问题。但\"0.5赫兹\"不是速度单位，不过movement包含数字就行。用户要求\"movement必须含具体数字(厘米/度/秒)\"，这可能意味着movement中的数字单位应该是厘米、度或秒。0.5赫兹不是这些单位。我改一下segment 2的movement描述。\n\nsegment 2 movement改为：\"手持横向晃动振幅2厘米，纵向上下浮动1厘米/秒\"\nspeed: \"1厘米/秒\"\n这样movement含\"2厘米\"和\"1厘米/秒\"。\n\n或者更好：\nsegment 2 movement: \"手持横向晃动振幅2厘米，纵向浮动速度1厘米/秒\"\nspeed: \"1.5厘米/秒\"\n\n但speed和movement数字可以不同，speed是整体速度指标。\n\n让我重新整理：\n\n{\n  \"strategy\": \"压迫式三阶递进\",\n  \"reasoning\": \"在15秒医学警示独白中，景别由中景向特写收敛，运动轨迹从正向推进转为微幅震颤再变为环绕包围，利用镜头物理空间的侵占性模拟病症对机体的侵蚀，强化tension情绪下的心理压迫与指令记忆。\",\n  \"segments\": [\n    {\n      \"timeRange\": \"0-5s\",\n      \"shotSize\": \"medium\",\n      \"movement\": \"轨道直轨前移40厘米，同步下压俯角5度\",\n      \"speed\": \"8厘米/秒\",\n      \"reason\": \"以稳定中景缓慢逼近建立权威叙述场域，缩短物理距离暗示症状正在逼近身体，对应肌肉剧痛与肿胀的第一信号。\"\n    },\n    {\n      \"timeRange\": \"5-10s\",\n      \"shotSize\": \"close_up\",\n      \"movement\": \"手持横向不规则晃动振幅2厘米，纵向浮动1厘米/秒\",\n      \"speed\": \"1.5厘米/秒\",\n      \"reason\": \"切至特写并引入低频震颤，视觉上隐喻患者体内代谢紊乱与生理不适，对应尿液变色与全身乏力的内在危急信号。\"\n    },\n    {\n      \"timeRange\": \"10-15s\",\n      \"shotSize\": \"close_up\",\n      \"movement\": \"轨道顺时针环绕主体移动60度，径向再逼近15厘米\",\n      \"speed\": \"12度/秒\",\n     ",
+    "source": "content-only-json-mode",
+    "tokenCount": 2242,
+    "raw": {
+      "id": "chatcmpl-axsR7243LsUionCEM9t731LC",
+      "object": "chat.completion",
+      "created": 1781626336,
+      "model": "kimi-for-coding",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "用户要求生成一个合法的JSON对象，用于3段运镜方案。需要严格遵循以下要求：\n\n1. 只输出合法JSON，不要markdown，不要解释，不要额外文本\n2. 场景: 未命名\n3. 类型: 对话\n4. 时长: 15秒\n5. 情绪: tension\n6. 人物: 无\n7. 台词: 关于横纹肌溶解症状的医学科普内容\n8. 限制: 可用景别[medium, close_up], 禁用[extreme_wide]\n9. JSON字段: strategy, reasoning, segments\n10. segments每项字段: timeRange, shotSize, movement, speed, reason\n11. movement必须含具体数字(厘米/度/秒)\n12. strategy必须是具体名称，不得写\"策略名\"\n\n我需要设计一个15秒的3段式运镜方案，情绪是tension（紧张感），对话类型，讲医学症状。\n\n考虑到情绪是tension，镜头应该有压迫感、渐进式推进或手持晃动感。但因为是医学科普对话，可能是一个医生在讲解。\n\n3段时间加起来应该是15秒。可以分配为：\n- 第1段：0-5秒\n- 第2段：5-10秒\n- 第3段：10-15秒\n\n景别只能用 medium 和 close_up。\n\n策略名称要具体，比如\"渐进压迫式推轨\"之类的。\n\nmovement 必须含具体数字，比如\"推轨前移30厘米\"或\"手持晃动振幅2厘米/秒\"等。\n\n让我设计：\n\nstrategy: \"医学警示渐进推轨\"\nreasoning: \"通过景别从medium逐步收紧至close_up，配合稳定的推轨运动，在医学科普的理性氛围中构建隐性压迫感，让观众注意力从环境聚焦到症状细节描述，强化'tension'情绪下的信息权威性与紧迫性。\"\n\nsegments:\n1. timeRange: \"0-5s\", shotSize: \"medium\", movement: \"轨道前移40厘米，机位高度下降15厘米\", speed: \"5厘米/秒\", reason: \"开场建立叙述者中景，缓慢推进制造逼近感，对应第一症状的引入\"\n2. timeRange: \"5-10s\", shotSize: \"close_up\", movement: \"手持微晃振幅1.5厘米/秒，焦点保持眼部\", speed: \"极低速\", reason: \"切至特写放大紧张感，轻微不稳定感暗示身体危机，对应尿液变色等严重症状描述\"\n3. timeRange: \"10-15s\", shotSize: \"close_up\", movement: \"环绕主体顺时针旋转15度/秒，同时推轨前移20厘米\", speed: \"15度/秒，4厘米/秒\", reason: \"环绕特写制造视觉压迫与无路可退感，强化'千万别硬扛'的警示结论\"\n\n等等，我需要确保movement和speed都包含具体数字。让我再检查一下。\n\n第1段：\nmovement: \"轨道匀速前移40厘米，机位同步下降10厘米\"\nspeed: \"8厘米/秒\"\nreason: \"从叙述者中景缓慢逼近，建立权威压迫感，配合第一、二症状的列举\"\n\n第2段：\ntimeRange: \"5-10s\"\nshotSize: \"close_up\"\nmovement: \"手持微震横向偏移2厘米，纵向浮动1厘米\"\nspeed: \"1.5厘米/秒\"\nreason: \"切换特写并引入轻微不规则运动，模拟患者生理不适的隐喻，强调尿液颜色加重的危急信号\"\n\n第3段：\ntimeRange: \"10-15s\"\nshotSize: \"close_up\"\nmovement: \"轨道顺时针环绕主体移动60度\"\nspeed: \"12度/秒\"\nreason: \"在警告性结语时以环绕特写锁死视线，消除环境安全感，迫使观众直面'别硬扛'的紧迫指令\"\n\n让我检查总时长：\n0-5s: 5秒\n5-10s: 5秒\n10-15s: 5秒\n总共15秒。合理。\n\n景别：medium, close_up, close_up。符合限制。\n\n情绪tension通过推进、手持微震、环绕来体现。\n\n台词内容分配：\n0-5s: \"横纹肌溶解最典型的症状，大家记住这三个信号。第一，肌肉剧烈酸痛、肿胀，按压发硬；\"\n5-10s: \"第二，尿液颜色明显加深，像浓茶或酱油色；第三，全身乏力，\"\n10-15s: \"伴随恶心呕吐。出现这三种情况，尤其是剧烈运动后，千万别硬扛。\"\n\n这样分配合理。\n\nJSON格式检查：\n- 外层：strategy (string), reasoning (string), segments (array)\n- segments每项：timeRange (string), shotSize (string), movement (string), speed (string), reason (string)\n- strategy必须具体，不能是\"策略名\"\n\n我需要确保JSON合法：双引号包裹，逗号正确，没有尾随逗号。\n\n再优化一下具体数值和描述：\n\nstrategy: \"压迫式三阶递进\"\nreasoning: \"在15秒医学警示独白中，通过景别由中景向特写收敛，运动轨迹从正向推进转为微幅震颤再变为环绕包围，利用镜头物理空间的侵占性模拟病症对身体的侵蚀过程，强化tension情绪下观众的心理压迫与记忆留存。\"\n\nsegment 1:\ntimeRange: \"0-5s\"\nshotSize: \"medium\"\nmovement: \"轨道直轨前移40厘米，镜头俯角增加5度\"\nspeed: \"8厘米/秒\"\nreason: \"开场以稳定中景推进建立权威叙述场域，缓慢缩短物理距离暗示症状正在逼近身体，对应第一信号的肌肉剧痛描述\"\n\nsegment 2:\ntimeRange: \"5-10s\"\nshotSize: \"close_up\"\nmovement: \"手持横向晃动振幅2厘米，纵向偏移频率0.5赫兹\"\nspeed: \"1厘米/秒\"\nreason: \"切至特写并引入低频不规则晃动，视觉上模拟患者体内的紊乱与不适，对应浓茶色尿液与乏力这两个内在危急信号\"\n\nsegment 3:\ntimeRange: \"10-15s\"\nshotSize: \"close_up\"\nmovement: \"轨道环绕主体顺时针移动60度，径向距离再逼近15厘米\"\nspeed: \"12度/秒，3厘米/秒\"\nreason: \"以环绕特写锁死视觉出口，消除观众的安全距离，在'千万别硬扛'的警示句上形成空间包围感，完成情绪压迫的顶点\"\n\n检查：\n- strategy具体吗？是的，\"压迫式三阶递进\"\n- movement都含数字吗？是的，40厘米、5度、2厘米、0.5赫兹（频率不是速度，但 movement 描述含数字即可？等等，speed也需要含数字。让我看看。\n  - segment 1 movement: \"轨道直轨前移40厘米，镜头俯角增加5度\" — 有40厘米、5度。speed: \"8厘米/秒\" — 有数字。\n  - segment 2 movement: \"手持横向晃动振幅2厘米，纵向偏移频率0.5赫兹\" — 有2厘米、0.5。但\"纵向偏移频率0.5赫兹\"描述的是频率不是速度。speed: \"1厘米/秒\" — 有数字。\n  - segment 3 movement: \"轨道环绕主体顺时针移动60度，径向距离再逼近15厘米\" — 有60度、15厘米。speed: \"12度/秒，3厘米/秒\" — 有数字。\n\n看起来没问题。但\"0.5赫兹\"不是速度单位，不过movement包含数字就行。用户要求\"movement必须含具体数字(厘米/度/秒)\"，这可能意味着movement中的数字单位应该是厘米、度或秒。0.5赫兹不是这些单位。我改一下segment 2的movement描述。\n\nsegment 2 movement改为：\"手持横向晃动振幅2厘米，纵向上下浮动1厘米/秒\"\nspeed: \"1厘米/秒\"\n这样movement含\"2厘米\"和\"1厘米/秒\"。\n\n或者更好：\nsegment 2 movement: \"手持横向晃动振幅2厘米，纵向浮动速度1厘米/秒\"\nspeed: \"1.5厘米/秒\"\n\n但speed和movement数字可以不同，speed是整体速度指标。\n\n让我重新整理：\n\n{\n  \"strategy\": \"压迫式三阶递进\",\n  \"reasoning\": \"在15秒医学警示独白中，景别由中景向特写收敛，运动轨迹从正向推进转为微幅震颤再变为环绕包围，利用镜头物理空间的侵占性模拟病症对机体的侵蚀，强化tension情绪下的心理压迫与指令记忆。\",\n  \"segments\": [\n    {\n      \"timeRange\": \"0-5s\",\n      \"shotSize\": \"medium\",\n      \"movement\": \"轨道直轨前移40厘米，同步下压俯角5度\",\n      \"speed\": \"8厘米/秒\",\n      \"reason\": \"以稳定中景缓慢逼近建立权威叙述场域，缩短物理距离暗示症状正在逼近身体，对应肌肉剧痛与肿胀的第一信号。\"\n    },\n    {\n      \"timeRange\": \"5-10s\",\n      \"shotSize\": \"close_up\",\n      \"movement\": \"手持横向不规则晃动振幅2厘米，纵向浮动1厘米/秒\",\n      \"speed\": \"1.5厘米/秒\",\n      \"reason\": \"切至特写并引入低频震颤，视觉上隐喻患者体内代谢紊乱与生理不适，对应尿液变色与全身乏力的内在危急信号。\"\n    },\n    {\n      \"timeRange\": \"10-15s\",\n      \"shotSize\": \"close_up\",\n      \"movement\": \"轨道顺时针环绕主体移动60度，径向再逼近15厘米\",\n      \"speed\": \"12度/秒\",\n     "
+          },
+          "finish_reason": "length"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 194,
+        "completion_tokens": 2048,
+        "total_tokens": 2242,
+        "completion_tokens_details": {
+          "reasoning_tokens": 2048
+        }
+      }
+    }
+  }
+}

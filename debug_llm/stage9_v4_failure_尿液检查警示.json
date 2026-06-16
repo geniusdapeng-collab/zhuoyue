@@ -1,0 +1,59 @@
+{
+  "time": "2026-06-16T13:26:21.628Z",
+  "sceneAnalysis": {
+    "spaceSize": "medium",
+    "sceneType": "dialogue",
+    "sceneTypeName": "对话",
+    "segmentCount": 3,
+    "constraints": {
+      "minSize": "medium",
+      "maxSize": "wide",
+      "forbidden": [
+        "extreme_wide"
+      ],
+      "preferred": [
+        "medium",
+        "close_up"
+      ],
+      "defaultSize": "medium"
+    },
+    "movementStyle": "stable",
+    "characterCount": 1,
+    "duration": 15,
+    "shotId": "尿液检查警示",
+    "dialogue": "这里要特别提醒大家，横纹肌溶解最典型的信号就是尿液颜色变深。如果你发现尿液变成了酱油色或者茶色，这说明肌肉损伤已经很严重，肌红蛋白正在进入尿液。这时候必须立即就医，检查肌酸激酶和肾功能指标。",
+    "emotionPhase": "tension"
+  },
+  "result": {
+    "success": true,
+    "content": "{\n  \"strategy\": \"递进式生理压迫运镜\",\n  \"reasoning\": \"基于医疗警示台词的三段式信息递进：从客观宣告、症状特写再到紧急指令，通过景别收窄与运动加速度的同步提升，将生理性紧张转化为视觉压迫，迫使观众在15秒内完成从认知到警觉的情绪跃迁。\",\n  \"segments\": [\n    {\n      \"timeRange\": \"0-5s\",\n      \"shotSize\": \"medium\",\n      \"movement\": \"轨道匀速推进8厘米/秒\",\n      \"speed\": \"slow\",\n      \"reason\": \"以稳定中景建立权威宣告氛围，缓慢前推暗示体内危机正在逼近，为后续信息释放做压迫感铺垫\"\n    },\n    {\n      \"timeRange\": \"5-10s\",\n      \"shotSize\": \"close_up\",\n      \"movement\": \"手持微晃水平偏移1.5度/秒\",\n      \"speed\": \"moderate\",\n      \"reason\": \"切换至极近特写放大尿液变色的生理恐惧，手持微晃模拟患者主观眩晕",
+    "reasoning_content": "用户要求以专业电影摄影师的身份，只输出一个合法的JSON对象。需要为一个15秒的对话场景生成3段运镜方案。\n\n场景：未命名\n类型：对话\n时长：15秒\n情绪：tension（紧张）\n人物：无\n台词：关于横纹肌溶解的医疗警示内容，提到尿液颜色变深（酱油色/茶色）、肌红蛋白进入尿液、必须立即就医检查肌酸激酶和肾功能。\n\n限制：\n- 可用景别：[medium, close_up]\n- 禁用：[extreme_wide]\n- JSON字段：strategy, reasoning, segments\n- segments每项字段：timeRange, shotSize, movement, speed, reason\n- movement必须含具体数字（厘米/度/秒）\n- strategy必须是具体名称，不得写\"策略名\"\n\n情绪是tension（紧张），台词是医疗警示内容，比较严肃和紧迫。没有人物，所以可能是对着镜头说话，或者拍摄的是讲述者/医生，或者模拟主观视角。但用户说\"人物：无\"，可能是没有特定命名人物，或者是空场景？但类型是对话。可能是一个人对着镜头讲解，或者是一个访谈。\n\n考虑到是医疗警示内容，且情绪是tension，运镜应该营造紧迫感和压迫感。\n\n可用景别只有medium和close_up。\n\n需要3段运镜方案，总时长15秒。可以分成三段，每段5秒，或者根据内容分段。\n\n策略名称需要具体，比如\"递进式压迫运镜\"、\"三段警示运镜\"等。\n\nmovement必须包含具体数字，例如\"推进5厘米/秒\"、\"手持晃动2度\"、\"环绕10度/秒\"等。\n\n让我设计：\n\nStrategy: 递进警示压迫运镜\nReasoning: 通过景别从medium逐渐收紧到close_up，配合不稳定的微动和渐进式推轨，模拟病症加重的生理压迫感与心理焦虑，强化医疗警示的紧迫性。\n\n分段设计：\n1. 第一段：0-5秒。台词开头：\"这里要特别提醒大家...尿液颜色变深。\"\n   - shotSize: medium\n   - movement: 可以是一个缓慢的推轨向前，或者手持微晃。因为刚开始介绍，保持稳定但略带紧张。比如\"轨道向前推进8厘米/秒\"或\"手持左右晃动1度/秒\"。考虑到tension，可以用缓慢推进。\n   - timeRange: \"0-5s\"\n   - shotSize: \"medium\"\n   - movement: \"轨道推进10厘米/秒\"\n   - speed: \"slow\" 或具体数值？字段里有speed，应该是描述词或数值。用户没限定speed格式，但movement必须有数字。speed可以写\"slow\"或\"5cm/s\"? 但movement已经要含数字了。speed可以写\"缓慢\"或具体值。我看看字段：speed。可能写\"slow\", \"medium\", \"fast\" 或带数字。但为了安全，speed写描述性词语，movement写带数字的具体描述。\n   - reason: 建立初始语境，缓慢推进暗示问题即将暴露。\n\n2. 第二段：5-10秒。台词：\"如果你发现尿液变成了酱油色或者茶色...肌红蛋白正在进入尿液。\"\n   - 这是关键信息，症状描述。景别可以切到close_up，比如嘴部、眼睛，或者一个医疗样本/尿液样本的close_up？但人物无，可能是讲述者的面部特写，或者就是对着镜头的讲解。切到close_up增加紧张感。\n   - shotSize: close_up\n   - movement: 可以是轻微的手持呼吸感，或者极缓慢的横移。比如\"手持上下浮动0.5厘米/秒\"或\"焦点微调呼吸感\"。需要含数字：\"微距环扭转2度/秒\"不太对。还是用平移：\"横向滑轨摆动3厘米/秒\"或\"推轨前进5厘米/秒\"。考虑到情绪tension，可以加入非常轻微的左右晃动模拟不安：\"手持水平晃动1.5度/秒\"。\n   - timeRange: \"5-10s\"\n   - shotSize: \"close_up\"\n   - movement: \"手持水平晃动1.5度/秒\"\n   - speed: \"moderate\"\n   - reason: 特写放大生理恐惧，微晃暗示身体内部异变与不安。\n\n3. 第三段：10-15秒。台词：\"这时候必须立即就医...检查肌酸激酶和肾功能指标。\"\n   - 这是行动指令，最紧迫。景别可以回到medium或者保持close_up。但为了递进，可以保持close_up，或者换一个medium来展示紧迫姿态。但可用景别只有这两个。也许保持close_up，但运动更急迫？或者切到medium展现\"必须立即\"的动作感？\n   - 考虑到台词是命令式，切到medium可能更有力，展示说话者的严肃姿态。或者保持close_up在面部，强调眼神紧迫。\n   - 让我选择medium，然后做一个快速的推轨？\"轨道急推15厘米/秒\"但太快可能不合适。或者\"环绕主体15度/秒\"？\n   - 情绪是tension，最后要有冲击。可以设计为：固定机位突然停止晃动，或者一个短促的推进后定格？\n   - movement: \"轨道急速推进20厘米/秒后骤停\" - 含数字。\n   - 但可能太猛。还是\"稳定器急速前推12厘米/秒\"更好。\n   - timeRange: \"10-15s\"\n   - shotSize: \"medium\"\n   - movement: \"稳定器急速前推12厘米/秒\"\n   - speed: \"fast\"\n   - reason: 景别后撤至中景构建命令式气场，急速推进制造最后通牒般的视觉冲击，迫使观众产生行动焦虑。\n\n等等，我需要确保JSON合法，不能有多余文本。而且用户要求\"只输出一个合法JSON对象\"。\n\n重新检查：\n- strategy: 具体名称，不能是\"策略名\"。我写\"递进压迫三段式\"。\n- reasoning: 字符串。\n- segments: 数组，3项。\n  - timeRange: 字符串，如\"00:00-00:05\"或\"0-5s\"。\n  - shotSize: \"medium\"或\"close_up\"。\n  - movement: 必须含具体数字（厘米/度/秒）。\n  - speed: 字符串。\n  - reason: 字符串。\n\n让我再细化一下movement的数字表达，要清晰。\n\n第一段 (0-5s):\n- timeRange: \"0-5s\"\n- shotSize: \"medium\"\n- movement: \"轨道匀速推进8厘米/秒\"\n- speed: \"slow\"\n- reason: \"以稳定中景建立医疗宣告的权威感，缓慢推进暗示潜在危机正在逼近\"\n\n第二段 (5-10s):\n- timeRange: \"5-10s\"\n- shotSize: \"close_up\"\n- movement: \"手持环绕1.2度/秒\"\n- speed: \"moderate\"\n- reason: \"切换至极近特写放大生理细节恐惧，轻微环绕运动模拟患者眩晕与肌肉崩解的主观不适感\"\n\n第三段 (10-15s):\n- timeRange: \"10-15s\"\n- shotSize: \"close_up\" 或者 \"medium\"。为了递进，第三段可以用medium来释放？但通常紧张感在特写最强。不过如果一直在特写，可能会疲劳。但可用景别只有这两个。我可以让第二段是close_up，第三段也是close_up但更急迫？或者第三段用medium展示说话者命令的姿态。\n\n  再想，台词最后说\"必须立即就医\"，如果说话者是医生，medium能展示其手势和姿态，增强说服力。情绪tension不一定要一直特写，medium的急促运动也可以制造紧张。\n\n  但第二段已经是close_up了，第三段切回medium会不会稀释紧张？可以在第三段开始是medium，然后快速推到close_up？但每段只有一个shotSize。\n\n  我决定：第三段用close_up，因为医疗警示最后要盯着观众/患者看，制造压迫。但运动要更急。\n\n  或者：第三段用medium，运动是\"急速横移20厘米/秒\"，制造不安。\n\n  好吧，我采用：\n  第三段 shotSize: \"medium\"\n  movement: \"稳定器急速前推15厘米/秒后骤停\"\n  speed: \"fast\"\n  reason: \"回归中景构建指令性气场，短促急速推进模拟急救警报的突触刺激，以定格收束全片紧迫感\"\n\n等等，\"稳定器急速前推15厘米/秒后骤停\" 含数字15，合法。\n\n但我需要确保strategy是具体名称。我写\"递进式生理压迫运镜\"。\n\n现在构建JSON：\n\n{\n  \"strategy\": \"递进式生理压迫运镜\",\n  \"reasoning\": \"基于医疗警示台词的三段式信息递进：从客观宣告、症状特写再到紧急指令，通过景别收窄与运动加速度的同步提升，将生理性紧张转化为视觉压迫，迫使观众在15秒内完成从认知到警觉的情绪跃迁。\",\n  \"segments\": [\n    {\n      \"timeRange\": \"0-5s\",\n      \"shotSize\": \"medium\",\n      \"movement\": \"轨道匀速推进8厘米/秒\",\n      \"speed\": \"slow\",\n      \"reason\": \"以稳定中景建立权威宣告氛围，缓慢前推暗示体内危机正在逼近，为后续信息释放做压迫感铺垫\"\n    },\n    {\n      \"timeRange\": \"5-10s\",\n      \"shotSize\": \"close_up\",\n      \"movement\": \"手持微晃水平偏移1.5度/秒\",\n      \"speed\": \"moderate\",\n      \"reason\": \"切换至极近特写放大尿液变色的生理恐惧，手持微晃模拟患者主观眩晕",
+    "source": "content-only-json-mode",
+    "tokenCount": 2238,
+    "raw": {
+      "id": "chatcmpl-2a7HVC4JpcyhNA7qDc0E9iiJ",
+      "object": "chat.completion",
+      "created": 1781616316,
+      "model": "kimi-for-coding",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "用户要求以专业电影摄影师的身份，只输出一个合法的JSON对象。需要为一个15秒的对话场景生成3段运镜方案。\n\n场景：未命名\n类型：对话\n时长：15秒\n情绪：tension（紧张）\n人物：无\n台词：关于横纹肌溶解的医疗警示内容，提到尿液颜色变深（酱油色/茶色）、肌红蛋白进入尿液、必须立即就医检查肌酸激酶和肾功能。\n\n限制：\n- 可用景别：[medium, close_up]\n- 禁用：[extreme_wide]\n- JSON字段：strategy, reasoning, segments\n- segments每项字段：timeRange, shotSize, movement, speed, reason\n- movement必须含具体数字（厘米/度/秒）\n- strategy必须是具体名称，不得写\"策略名\"\n\n情绪是tension（紧张），台词是医疗警示内容，比较严肃和紧迫。没有人物，所以可能是对着镜头说话，或者拍摄的是讲述者/医生，或者模拟主观视角。但用户说\"人物：无\"，可能是没有特定命名人物，或者是空场景？但类型是对话。可能是一个人对着镜头讲解，或者是一个访谈。\n\n考虑到是医疗警示内容，且情绪是tension，运镜应该营造紧迫感和压迫感。\n\n可用景别只有medium和close_up。\n\n需要3段运镜方案，总时长15秒。可以分成三段，每段5秒，或者根据内容分段。\n\n策略名称需要具体，比如\"递进式压迫运镜\"、\"三段警示运镜\"等。\n\nmovement必须包含具体数字，例如\"推进5厘米/秒\"、\"手持晃动2度\"、\"环绕10度/秒\"等。\n\n让我设计：\n\nStrategy: 递进警示压迫运镜\nReasoning: 通过景别从medium逐渐收紧到close_up，配合不稳定的微动和渐进式推轨，模拟病症加重的生理压迫感与心理焦虑，强化医疗警示的紧迫性。\n\n分段设计：\n1. 第一段：0-5秒。台词开头：\"这里要特别提醒大家...尿液颜色变深。\"\n   - shotSize: medium\n   - movement: 可以是一个缓慢的推轨向前，或者手持微晃。因为刚开始介绍，保持稳定但略带紧张。比如\"轨道向前推进8厘米/秒\"或\"手持左右晃动1度/秒\"。考虑到tension，可以用缓慢推进。\n   - timeRange: \"0-5s\"\n   - shotSize: \"medium\"\n   - movement: \"轨道推进10厘米/秒\"\n   - speed: \"slow\" 或具体数值？字段里有speed，应该是描述词或数值。用户没限定speed格式，但movement必须有数字。speed可以写\"slow\"或\"5cm/s\"? 但movement已经要含数字了。speed可以写\"缓慢\"或具体值。我看看字段：speed。可能写\"slow\", \"medium\", \"fast\" 或带数字。但为了安全，speed写描述性词语，movement写带数字的具体描述。\n   - reason: 建立初始语境，缓慢推进暗示问题即将暴露。\n\n2. 第二段：5-10秒。台词：\"如果你发现尿液变成了酱油色或者茶色...肌红蛋白正在进入尿液。\"\n   - 这是关键信息，症状描述。景别可以切到close_up，比如嘴部、眼睛，或者一个医疗样本/尿液样本的close_up？但人物无，可能是讲述者的面部特写，或者就是对着镜头的讲解。切到close_up增加紧张感。\n   - shotSize: close_up\n   - movement: 可以是轻微的手持呼吸感，或者极缓慢的横移。比如\"手持上下浮动0.5厘米/秒\"或\"焦点微调呼吸感\"。需要含数字：\"微距环扭转2度/秒\"不太对。还是用平移：\"横向滑轨摆动3厘米/秒\"或\"推轨前进5厘米/秒\"。考虑到情绪tension，可以加入非常轻微的左右晃动模拟不安：\"手持水平晃动1.5度/秒\"。\n   - timeRange: \"5-10s\"\n   - shotSize: \"close_up\"\n   - movement: \"手持水平晃动1.5度/秒\"\n   - speed: \"moderate\"\n   - reason: 特写放大生理恐惧，微晃暗示身体内部异变与不安。\n\n3. 第三段：10-15秒。台词：\"这时候必须立即就医...检查肌酸激酶和肾功能指标。\"\n   - 这是行动指令，最紧迫。景别可以回到medium或者保持close_up。但为了递进，可以保持close_up，或者换一个medium来展示紧迫姿态。但可用景别只有这两个。也许保持close_up，但运动更急迫？或者切到medium展现\"必须立即\"的动作感？\n   - 考虑到台词是命令式，切到medium可能更有力，展示说话者的严肃姿态。或者保持close_up在面部，强调眼神紧迫。\n   - 让我选择medium，然后做一个快速的推轨？\"轨道急推15厘米/秒\"但太快可能不合适。或者\"环绕主体15度/秒\"？\n   - 情绪是tension，最后要有冲击。可以设计为：固定机位突然停止晃动，或者一个短促的推进后定格？\n   - movement: \"轨道急速推进20厘米/秒后骤停\" - 含数字。\n   - 但可能太猛。还是\"稳定器急速前推12厘米/秒\"更好。\n   - timeRange: \"10-15s\"\n   - shotSize: \"medium\"\n   - movement: \"稳定器急速前推12厘米/秒\"\n   - speed: \"fast\"\n   - reason: 景别后撤至中景构建命令式气场，急速推进制造最后通牒般的视觉冲击，迫使观众产生行动焦虑。\n\n等等，我需要确保JSON合法，不能有多余文本。而且用户要求\"只输出一个合法JSON对象\"。\n\n重新检查：\n- strategy: 具体名称，不能是\"策略名\"。我写\"递进压迫三段式\"。\n- reasoning: 字符串。\n- segments: 数组，3项。\n  - timeRange: 字符串，如\"00:00-00:05\"或\"0-5s\"。\n  - shotSize: \"medium\"或\"close_up\"。\n  - movement: 必须含具体数字（厘米/度/秒）。\n  - speed: 字符串。\n  - reason: 字符串。\n\n让我再细化一下movement的数字表达，要清晰。\n\n第一段 (0-5s):\n- timeRange: \"0-5s\"\n- shotSize: \"medium\"\n- movement: \"轨道匀速推进8厘米/秒\"\n- speed: \"slow\"\n- reason: \"以稳定中景建立医疗宣告的权威感，缓慢推进暗示潜在危机正在逼近\"\n\n第二段 (5-10s):\n- timeRange: \"5-10s\"\n- shotSize: \"close_up\"\n- movement: \"手持环绕1.2度/秒\"\n- speed: \"moderate\"\n- reason: \"切换至极近特写放大生理细节恐惧，轻微环绕运动模拟患者眩晕与肌肉崩解的主观不适感\"\n\n第三段 (10-15s):\n- timeRange: \"10-15s\"\n- shotSize: \"close_up\" 或者 \"medium\"。为了递进，第三段可以用medium来释放？但通常紧张感在特写最强。不过如果一直在特写，可能会疲劳。但可用景别只有这两个。我可以让第二段是close_up，第三段也是close_up但更急迫？或者第三段用medium展示说话者命令的姿态。\n\n  再想，台词最后说\"必须立即就医\"，如果说话者是医生，medium能展示其手势和姿态，增强说服力。情绪tension不一定要一直特写，medium的急促运动也可以制造紧张。\n\n  但第二段已经是close_up了，第三段切回medium会不会稀释紧张？可以在第三段开始是medium，然后快速推到close_up？但每段只有一个shotSize。\n\n  我决定：第三段用close_up，因为医疗警示最后要盯着观众/患者看，制造压迫。但运动要更急。\n\n  或者：第三段用medium，运动是\"急速横移20厘米/秒\"，制造不安。\n\n  好吧，我采用：\n  第三段 shotSize: \"medium\"\n  movement: \"稳定器急速前推15厘米/秒后骤停\"\n  speed: \"fast\"\n  reason: \"回归中景构建指令性气场，短促急速推进模拟急救警报的突触刺激，以定格收束全片紧迫感\"\n\n等等，\"稳定器急速前推15厘米/秒后骤停\" 含数字15，合法。\n\n但我需要确保strategy是具体名称。我写\"递进式生理压迫运镜\"。\n\n现在构建JSON：\n\n{\n  \"strategy\": \"递进式生理压迫运镜\",\n  \"reasoning\": \"基于医疗警示台词的三段式信息递进：从客观宣告、症状特写再到紧急指令，通过景别收窄与运动加速度的同步提升，将生理性紧张转化为视觉压迫，迫使观众在15秒内完成从认知到警觉的情绪跃迁。\",\n  \"segments\": [\n    {\n      \"timeRange\": \"0-5s\",\n      \"shotSize\": \"medium\",\n      \"movement\": \"轨道匀速推进8厘米/秒\",\n      \"speed\": \"slow\",\n      \"reason\": \"以稳定中景建立权威宣告氛围，缓慢前推暗示体内危机正在逼近，为后续信息释放做压迫感铺垫\"\n    },\n    {\n      \"timeRange\": \"5-10s\",\n      \"shotSize\": \"close_up\",\n      \"movement\": \"手持微晃水平偏移1.5度/秒\",\n      \"speed\": \"moderate\",\n      \"reason\": \"切换至极近特写放大尿液变色的生理恐惧，手持微晃模拟患者主观眩晕"
+          },
+          "finish_reason": "length"
+        }
+      ],
+      "usage": {
+        "prompt_tokens": 190,
+        "completion_tokens": 2048,
+        "total_tokens": 2238,
+        "completion_tokens_details": {
+          "reasoning_tokens": 2048
+        }
+      }
+    }
+  }
+}
