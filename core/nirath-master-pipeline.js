@@ -2206,7 +2206,7 @@ class NirathMasterPipeline {
       parts.push(`
 【重要约束】`);
       parts.push(`- 本视频为真实世界纪录片/科普风格,禁止使用任何虚构元素`);
-      parts.push(`- 禁止出现:外星生态、Nirath、异兽、科幻场景、超自然现象`);
+      parts.push(`- 禁止出现:外星生态、科幻场景、超自然现象`);
       parts.push(`- 所有角色必须是真实人类,禁止虚构角色`);
       parts.push(`- 场景必须是真实医疗/教育环境`);
     }
@@ -2308,8 +2308,8 @@ class NirathMasterPipeline {
       parts.push(`
 【重要约束】`);
       parts.push(`- 本视频为真实世界纪录片/科普风格,禁止使用任何虚构元素`);
-      parts.push(`- 禁止出现:外星生态、Nirath、异兽、科幻场景、超自然现象`);
-      parts.push(`- 禁止出现:"小G迈出第一步"、"迎向异兽"、"选择信任"、"勇敢告别"、"温柔注视"等Nirath专属叙事短语`);
+      parts.push(`- 禁止出现:外星生态、科幻场景、超自然现象`);
+      parts.push(`- 禁止出现:"迈出第一步"、"选择信任"、"勇敢告别"、"温柔注视"等Nirath专属叙事短语`);
       parts.push(`- 所有角色必须是真实人类,禁止虚构角色`);
       parts.push(`- 场景必须是真实医疗/教育环境`);
     }
@@ -2511,7 +2511,7 @@ class NirathMasterPipeline {
   _buildScriptPrompt(scenes, core, world, batchIdx, totalBatches) {
     // 根据模式选择提示词模板
     const isNirath = this.mode === 'nirath';
-    const projectType = isNirath ? '山海经' : (core.projectType || '视频');
+    const projectType = isNirath ? 'Nirath' : (core.projectType || '视频');
     const worldName = world?.name || world?.setting || (isNirath ? 'Nirath' : '现实世界');
     const worldDesc = isNirath ? '(外星生态星球)' : (world?.atmosphere ? `(${world.atmosphere})` : '');
     const style = world?.style || (isNirath ? 'Nirath电影级, 超写实科幻生态风格' : '超写实纪录片风格');
@@ -2561,12 +2561,12 @@ ${style}(必须与场景主题一致)
 
 JSON格式(注意:用dialogue字段,不是narration):
 ${isNirath
-  ? `{"scenes":[{"id":"S01","scene":"场景名称","dialogue":"角色对白或台词文本(不要旁白叙述,要角色自己说的话)","type":"opening","characters":["xiaoG","taotie"],"mouthAction":"speaking_whisper","emotionPhase":"curiosity","importance":8,"visualComplexity":7,"visualPrompt":"超写实,电影级光影,角色动作描述(300-500字)","beastDialogue":"异兽台词(如有,20字内)"}]}`
+  ? `{"scenes":[{"id":"S01","scene":"场景名称","dialogue":"角色对白或台词文本(不要旁白叙述,要角色自己说的话)","type":"opening","characters":["${charList.split(',')[0] || 'chen-nurse'}"],"mouthAction":"speaking_whisper","emotionPhase":"curiosity","importance":8,"visualComplexity":7,"visualPrompt":"超写实,电影级光影,角色动作描述(300-500字)"}]}`
   : `{"scenes":[{"id":"S01","scene":"场景名称","dialogue":"角色对白或台词文本(不要旁白叙述,要角色自己说的话)","type":"explanation","characters":["${charList.split(',')[0] || 'chen-nurse'}"],"mouthAction":"speaking_normal","emotionPhase":"professional","importance":8,"visualComplexity":7,"visualPrompt":"超写实,电影级光影,角色动作描述(300-500字)"}]}`
 }
 
 ## 关键规则(P0级约束)
-- ❌ 绝对禁止生成旁白/叙述性文字(如"小G来到了...")
+- ❌ 绝对禁止生成旁白/叙述性文字(如"角色来到了...")
 - ✅ 必须生成角色对白/台词(角色自己说的话)
 - ✅ 严格遵循每个场景指定的角色列表,禁止引入未声明角色
 - ✅ 台词内容必须与场景名称和场景描述的主题一致(如"症状讲解"场景必须围绕症状展开)
@@ -2919,12 +2919,12 @@ ${isNirath
     this.log('STAGE-7', '故事板生成(结构化生成器 + mouthAction字段 + 场景映射)');
 
     // ========== StoryCraft Engine v2.0 集成 ==========
-    // 检查是否启用 StoryCraft(仅Nirath模式：异兽视角叙事模式)
+    // 检查是否启用 StoryCraft(仅Nirath模式启用)
     const storyCraftEnabled = input?.storyCraftVersion === 'v2.0' || input?.storyCraftVersion === 'v1.0' || input?.enableStoryCraft === true;
     const beastProfile = input?.beastProfile || input?.beast || input?.core?.beast || {};
 
     if (storyCraftEnabled && beastProfile?.name && this.mode === 'nirath') {
-      this.log('STAGE-5.0', 'StoryCraft Engine v2.0 启用 - 异兽视角叙事 + 60秒三幕引擎 + 钻石台词');
+      this.log('STAGE-5.0', 'StoryCraft Engine v2.0 启用 - 特色视角叙事 + 60秒三幕引擎 + 钻石台词');
 
       try {
         const { StoryCraftIntegration } = require('../systems/story-craft-engine/story-craft-integration');
@@ -3316,12 +3316,10 @@ ${isNirath
       { id: 'coach-li', keywords: ['李明教练', 'coach-li', '教练', '李教练', '康复专家'] }
     ];
 
-    // v6.6.9-fix: Nirath模式追加xiaoG角色推断
+    // v6.6.9.4-patch9: 根据模式推断角色
     if (this.mode === 'nirath') {
-      // v6.6.9-fix: Nirath模式追加xiaoG角色推断
       genericChars.push({ id: 'xiaoG', keywords: ['小G', '小g', '男孩', ' protagonist', '主角'] });
     } else {
-      // v6.6.9.4-fix: generic模式追加presenter角色推断
       genericChars.push({ id: input.protagonistId || 'presenter', keywords: ['主讲人', '讲解者', 'presenter', '主持人'] });
     }
 
@@ -3345,7 +3343,7 @@ ${isNirath
         if (!chars.includes('tao-tie')) chars.push('tao-tie');
       }
 
-      // 通用异兽推断
+      // 通用角色推断(仅Nirath模式)
       if (scene.type === 'discovery' || scene.type === 'beastReveal') {
         if (!chars.includes('jiu-wei-hu') && text.includes('尾')) {
           chars.push('jiu-wei-hu');
@@ -3781,8 +3779,8 @@ ${isNirath
 
     const fictionalKeywords = [
       '神兽', '怪兽', '妖怪', '精灵', 'superhero', 'alien', 'creature',
-      '神话', '传说', '幻想', 'fantasy', 'anime', 'cartoon', 'cg',
-      '饕餮', '白泽', '刑天', '女娲', '龙', '凤凰', '麒麟'
+      '神话', '传说', '幻想', 'fantasy', 'anime', 'cartoon', 'cg'
+      // v6.6.9.4-patch9: 移除山海经特定生物名，保留通用虚构检测
     ];
     if (fictionalKeywords.some(kw => charDesc.includes(kw))) return true;
 
@@ -4117,7 +4115,7 @@ ${isNirath
       }
     }
 
-    this.log('STAGE-7.5', `  📋 片头配置: ${config.episodeTitle} | 异兽: ${config.featuredBeastId} | 时长: ${config.duration}秒 | 角色数: ${Object.keys(config.portraits).length}`);
+    this.log('STAGE-7.5', `  📋 片头配置: ${config.episodeTitle} | 主角: ${config.protagonistId} | 时长: ${config.duration}秒 | 角色数: ${Object.keys(config.portraits).length}`);
     return config;
   }
 
@@ -4338,9 +4336,9 @@ ${isNirath
     return validation;
   }
 
-  // ========== Stage 8.5: 五要素检查(v6.1升级:山海经系列专属质量闸机)==========
+  // ========== Stage 8.5: 五要素检查(v6.1升级:仅Nirath模式启用)==========
   async stageFiveElementCheck(storyboard, input) {
-    this.log('STAGE-8.5', '五要素检查启动(山海经系列)');
+    this.log('STAGE-8.5', '五要素检查启动(仅Nirath模式)');
 
     // 仅对nirath模式启用
     if (this.mode !== 'nirath') {
