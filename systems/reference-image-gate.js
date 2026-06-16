@@ -505,8 +505,8 @@ class ReferenceImageGate {
 
 Seedance 2.0 绑定规范:
    在 Prompt 中显式使用 @image 格式引用角色：
-   @image1 作为小G角色形象参考
-   @image2 作为饕餮角色形象参考
+   @image1 作为角色1形象参考
+   @image2 作为角色2形象参考
    
    content 数组中必须包含：
    { type: 'image_url', image_url: { url: 'data:image/png;base64,xxx' }, role: 'reference_image' }
