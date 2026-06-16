@@ -104,6 +104,11 @@ class FinalPromptBuilderV3 {
       }
     });
 
+    // DEBUG: 检查DIALOGUE字段
+    if (!normalized.fields.DIALOGUE) {
+      console.log(`[FinalPromptBuilder] ⚠️ ${shotId} 缺少DIALOGUE字段!`);
+    }
+
     return {
       success: validation.valid,
       prompt: normalized.prompt,

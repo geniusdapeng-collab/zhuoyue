@@ -4,7 +4,8 @@ class PromptValidator {
   constructor(options = {}) {
     this.maxLength = options.maxLength || 1500;
     this.minLength = options.minLength || 80;
-    this.requiredFields = options.requiredFields || ['CHARACTER', 'ACTION', 'SCENE'];
+    this.requiredFields = options.requiredFields || ['CHARACTER', 'SCENE', 'DIALOGUE'];
+    // v6.6.9.4-fix: ACTION不再是必填字段(台词已分离到DIALOGUE, ACTION只保留动作描述,可能为空)
   }
 
   validate(normalizedResult = {}) {
