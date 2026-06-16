@@ -800,13 +800,13 @@ class NirathMasterPipeline {
       // Stage 7.3: 【v6.2-patch51】Narration自动精简(必须在时长校准后执行,使用校准后的时长)
       result.stages.narrationTrim = await runStage('STAGE-7.3', () => this.stageNarrationTrim(result.stages.storyboard, result.stages.duration));
 
-      // Stage 7.5: 片头自动生成(山海经模式自动触发)
+      // Stage 7.5: 片头自动生成(如启用)
       result.stages.opening = await runStage('STAGE-7.5', () => this.stageOpeningGeneration(input, result.stages.storyboard, result.stages.characters));
 
       // Stage 8: 故事板校验
       result.stages.storyboardValidation = await runStage('STAGE-8', () => this.stageStoryboardValidation(result.stages.storyboard, input));
 
-      // Stage 8.5: 五要素检查(v6.1升级:山海经系列专属质量闸机)
+      // Stage 8.5: 五要素检查(v6.1升级:仅Nirath模式启用)
       result.stages.fiveElement = await runStage('STAGE-8.5', () => this.stageFiveElementCheck(result.stages.storyboard, input));
       if (result.stages.fiveElement.enabled && !result.stages.fiveElement.passed) {
         this.log('STAGE-8.5', `⚠️ 五要素检查发现${result.stages.fiveElement.failedElements?.length || 0}项未达标,记录问题供审阅优化`);
