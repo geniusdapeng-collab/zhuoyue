@@ -3327,9 +3327,13 @@ ${isNirath
     // v6.5.29-fix: generic角色推断
     const genericChars = [
       { id: 'chen-nurse', keywords: ['陈女士', 'chen-nurse', '护士', '主讲', '主持人'] },
-      { id: 'coach-li', keywords: ['李明教练', 'coach-li', '教练', '李教练', '康复专家'] },
-      { id: 'xiaoG', keywords: ['小G', '小g', '男孩', ' protagonist', '主角'] }
+      { id: 'coach-li', keywords: ['李明教练', 'coach-li', '教练', '李教练', '康复专家'] }
     ];
+
+    // v6.6.9-fix: Nirath模式追加xiaoG角色推断
+    if (this.mode === 'nirath') {
+      genericChars.push({ id: 'xiaoG', keywords: ['小G', '小g', '男孩', ' protagonist', '主角'] });
+    }
 
     for (const char of genericChars) {
       if (char.keywords.some(kw => text.includes(kw))) {
@@ -3862,8 +3866,8 @@ ${isNirath
     }
 
     const injector = this.modules.protagonistInjector;
-    const protagonistId = input?.protagonistId || 'xiaoG';
-    const protagonistName = input?.protagonistName || '小G';
+    const protagonistId = input?.protagonistId || 'protagonist';
+    const protagonistName = input?.protagonistName || '主角';
 
     const result = injector.inject(storyboard, { protagonistId, protagonistName });
 
@@ -4249,7 +4253,11 @@ ${isNirath
         if (isBeatName) {
           // 对于beatName,只检查narration是否包含与场景相关的关键词
           const narrationLower = shot.narration.toLowerCase();
-          const hasSceneRelated = ['饕餮', '小G', 'Nirath', '钩吾山', '荒原', '双眼', '种子', '触碰'].some(kw =>
+          // v6.6.9-fix: 根据模式选择关键词
+          const sceneKeywords = this.mode === 'nirath' 
+            ? ['饕餮', '小G', 'Nirath', '钩吾山', '荒原', '双眼', '种子', '触碰']
+            : ['场景', '主题', '内容', '人物'];
+          const hasSceneRelated = sceneKeywords.some(kw =>
             narrationLower.includes(kw.toLowerCase())
           );
 
@@ -4355,7 +4363,7 @@ ${isNirath
 
       const options = {
         beastProfile: input?.beastProfile || input?.beast || input?.core?.beast || storyboard?.beast || {},
-        protagonistProfile: input?.protagonist || input?.characters?.[input?.protagonistId || 'xiaoG'] || {}
+        protagonistProfile: input?.protagonist || input?.characters?.[input?.protagonistId || 'protagonist'] || {}
       };
 
       const report = inspector.inspect(storyboard, options);
@@ -5089,7 +5097,7 @@ ${isNirath
           openingOutput.title = {
             main: shot.postProduction.mainTitle || '',
             sub: shot.postProduction.subTitle || '',
-            creator: shot.postProduction.brand ? shot.postProduction.brand.replace('A Nirath Original by ', '') : 'Genius',
+            creator: shot.postProduction.brand ? shot.postProduction.brand.replace(/A Nirath Original by\s*/, '') : 'Genius',
             episodeName: shot.postProduction.titleFormation || '',
             displayTiming: '6.8-9.0s',
             position: '画面中央偏下',
@@ -5528,7 +5536,7 @@ ${isNirath
         try {
           const context = {
             totalShots: storyboard.shots.length,
-            protagonistName: this.projectConfig.protagonistName || '小G',
+            protagonistName: this.projectConfig.protagonistName || '主角',
             beastId: this.projectConfig.beastId || '',
             beastName: this.projectConfig.beastName || '',
             habitat: this.projectConfig.habitat || shot.scene || '',
