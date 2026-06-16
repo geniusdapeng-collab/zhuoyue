@@ -668,7 +668,7 @@ class CameraMovementSystemV3 extends CameraMovementSystem {
   }
   
   /**
-   * v3.1升级：注入冒险感运镜（山海经系列）
+   * v3.1升级：注入冒险感运镜（Nirath专属）
    * 为故事板注入主动镜头、探索运镜、互动镜头、魔幻揭示
    * @param {Array} shots - 故事板镜头数组
    * @param {Object} options - 冒险运镜配置
@@ -678,12 +678,12 @@ class CameraMovementSystemV3 extends CameraMovementSystem {
     const { AdventureCinematographySystem } = require('./nirath/adventure-cinematography-system');
     const adventureSystem = new AdventureCinematographySystem({
       intensity: options.intensity || 0.7,
-      protagonistId: options.protagonistId || 'xiaoG',
+      protagonistId: options.protagonistId || 'protagonist',
       beastId: options.beastId || null
     });
     
     return adventureSystem.enhanceShots(shots, {
-      protagonistName: options.protagonistName || '小G',
+      protagonistName: options.protagonistName || '主角',
       beastName: options.beastName,
       habitat: options.habitat,
       ability: options.ability,

@@ -7,14 +7,14 @@
  * 2. 情绪导向描述替代毫米级解剖指令
  * 3. 关键字段保护器（防止截断）
  * 4. 镜头-动作一致性校验器
- * 5. 神兽/人类双维度适配
+ * 5. 角色/生物双维度适配
  */
 
 const { CharacterFeatureExtractor } = require('./character-feature-extractor.js');
 
 // ========== 1. 场景化情绪映射库 ==========
 const SCENE_EMOTION_MAP = {
-  // 山海经系列场景类型 → 情绪基调
+  // 通用系列场景类型 → 情绪基调
   'establishing': { tone: 'mysterious', intensity: 'medium' },      // 建立镜头：神秘
   'building': { tone: 'curious', intensity: 'medium' },            // 发展镜头：好奇
   'reveal': { tone: 'awe', intensity: 'strong' },                // 揭示镜头：敬畏
@@ -91,7 +91,7 @@ const HUMAN_MICRO_EXPRESSION = {
   }
 };
 
-// ========== 3. 神兽微表情维度库（特殊器官适配） ==========
+// ========== 3. 生物微表情维度库（特殊器官适配） ==========
 const BEAST_MICRO_EXPRESSION = {
   // 基础眼部（适配兽瞳）
   eye: {
@@ -198,7 +198,7 @@ const BODY_ACTION = {
       loom_over: '身体威压俯视'
     },
     stance: {
-      beast_looming: '神兽威压 looming',
+      beast_looming: '生物威压 looming',
       coiled_ready: '盘曲蓄势待发'
     }
   }
@@ -318,7 +318,7 @@ class MicroExpressionAllocator {
       // 主角情绪更细腻
       return baseEmotion.tone;
     } else if (role === 'beast') {
-      // 神兽情绪更强烈
+      // 生物情绪更强烈
       return baseEmotion.tone;
     }
     
@@ -340,7 +340,7 @@ class MicroExpressionAllocator {
     const parts = [];
     
     if (type === 'beast' && combination.special) {
-      // 神兽：特殊器官优先
+      // 生物：特殊器官优先
       for (const path of combination.special.slice(0, 3)) {
         const desc = this._resolvePath(BEAST_MICRO_EXPRESSION, path);
         if (desc) parts.push(desc);
