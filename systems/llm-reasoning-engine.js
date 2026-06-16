@@ -127,9 +127,9 @@ class LLMEngine {
     const lines = reasoning.split('\n');
     
     const indicators = [
-      'Nirath', '小G', '白泽', 'Aurelius', 'Silvana', '双恒星',
-      '超写实', '纪录片', '镜头', '全景', '中景', '特写', '推轨',
-      '0.82G', '3.2Tesla', '磁丝蕨', '发光植被'
+      '【', '】', '角色', '场景', '镜头', 'dialogue', 'narration',
+      '超写实', '纪录片', '电影级', 'cinematic', 'documentary', 'professional',
+      '全景', '中景', '特写', '推轨', '运镜', '光影'
     ];
 
     // 从后向前扫描，找最长的一段包含指标的中文文本
