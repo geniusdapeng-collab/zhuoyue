@@ -41,6 +41,24 @@ const { checkStandardCompliance } = require('../systems/prompt-standard-v3');
 const { processShotsForCompliance, processShotsForOutput, summarizeCompliance } = require('../systems/prompt-pipeline-bridge');
 const { buildStandardPromptFromShot } = require('../systems/prompt-standard-bridge');
 const { safeStructuredTrim } = require('../systems/safe-structured-trim');
+const {
+  asString,
+  getSceneName,
+  getSceneDisplayText,
+  normalizeCharacterEntry,
+  getCharacterName,
+  getCharacterProfile,
+  getCharacterPortraits,
+  getPromptText,
+  normalizeReferenceImages
+} = require('../systems/pipeline-safe-accessors');
+const { normalizeDialogueShots } = require('../systems/dialogue-normalizer');
+const {
+  normalizePortraitMapToReferenceImages,
+  mergeReferenceImages
+} = require('../systems/reference-image-normalizer');
+const { FallbackMonitor } = require('../systems/fallback-monitor');
+const { normalizeRenderShots } = require('../systems/render-shot-normalizer');
 
 // ========== 新增:镜头内Prompt增强器(v6.0-patch23融入) ==========
 const { buildAudioDescription, injectAudioDescription } = require('../systems/intra-shot-prompt-enhancer.js');
@@ -285,6 +303,7 @@ class NirathMasterPipeline {
     this.errors = [];
     this._asyncTasks = []; // v6.2-patch76: 追踪异步LLM任务
     this.charactersDir = options.charactersDir || path.join(__dirname, '..', '..', 'characters'); // v6.6.5: 角色目录初始化
+    this.fallbackMonitor = new FallbackMonitor();
   }
 
   /**
@@ -901,6 +920,32 @@ class NirathMasterPipeline {
             result.stages.render = __bridgeShots;
           }
         }
+      }
+
+      // ===== v6.6.9.4-fix: Stage-12 前强制标准化 Prompt =====
+      if (Array.isArray(result.stages.render)) {
+        result.stages.render = result.stages.render.map((shot) => {
+          const standardizedPrompt = buildStandardPromptFromShot({
+            ...shot,
+            prompt: shot.prompt,
+            dialogue: shot.dialogue,
+            visualPrompt: shot.visualPrompt,
+            cameraString: shot.cameraString || shot.cameraMovement?.description || '',
+            lightingString: shot.lightingString || shot.lighting?.description || '',
+            backgroundSoundString: shot.backgroundSoundString || shot.audioLayerString || ''
+          });
+
+          const safePrompt = safeStructuredTrim(standardizedPrompt, PROMPT_LENGTH.HARD_MAX);
+
+          return {
+            ...shot,
+            _originalPrompt: shot.prompt,
+            prompt: safePrompt,
+            length: safePrompt.length
+          };
+        });
+
+        this.log('PIPELINE', `🧱 Stage-12前标准化完成 | shots=${result.stages.render.length}`);
       }
 
       // ===== v6.6.9.4-fix: Stage-12 前强制标准化 Prompt =====
@@ -1890,6 +1935,7 @@ class NirathMasterPipeline {
       throw new Error(`STAGE-5 剧本生成失败: ${e.message} | 已触发重试机制但仍失败，终止预生产`);
     }
 
+    script.scenes = normalizeDialogueShots(script.scenes || []);
     return script;
   }
 
@@ -1935,6 +1981,11 @@ class NirathMasterPipeline {
     };
 
     this.log('STAGE-5', `✅ 剧本结构化fallback | 场景数: ${script.scenes.length} | 情绪: ${script.narrative.emotion} | mouthAction: ${analyzedScenes.filter(s => s.mouthAction).length}/${analyzedScenes.length}`);
+    script.scenes = normalizeDialogueShots(script.scenes || []);
+    this.fallbackMonitor.record('STAGE-5', {
+      reason: 'fallback_script_generation',
+      sceneCount: script.scenes.length
+    });
     return script;
   }
 
@@ -2950,6 +3001,7 @@ ${isNirath
   // ========== Stage 7: 故事板生成(防硬编码:结构化生成 + mouthAction字段 + 场景映射) ==========
   async stageStoryboard(script, durations, input = {}) {
     this.log('STAGE-7', '故事板生成(结构化生成器 + mouthAction字段 + 场景映射)');
+    script.scenes = normalizeDialogueShots(script.scenes || []);
 
     // ========== StoryCraft Engine v2.0 集成 ==========
     // 检查是否启用 StoryCraft(仅Nirath模式启用)
@@ -3516,7 +3568,7 @@ ${isNirath
       if (!char) continue;
 
       // 获取角色名(优先使用profile.name)
-      const charName = char.profile?.name || char.name || charId;
+      const charName = getCharacterName(char, charId);
 
       // 构建image://路径
       const imagePaths = [];
@@ -3554,7 +3606,7 @@ ${isNirath
       const char = stages.characters?.[charId];
       if (!char) continue;
 
-      const charName = char.profile?.name || char.name || charId;
+      const charName = getCharacterName(char, charId);
 
       // 获取种族/物种
       const race = char.profile?.race || char.profile?.species || '人类';
@@ -4512,7 +4564,7 @@ ${isNirath
 
         if (this.mode === 'nirath') {
           // Nirath模式:生成FPV电影感运镜 + v3时间轴
-          const sceneName = (shot.scene || '').split('-')[0]?.trim() || shot.scene || 'default';
+          const sceneName = getSceneName(shot.scene, 'default').split('-')[0]?.trim() || getSceneName(shot.scene, 'default');
           const phase = shot.emotionPhase || 'climax';
 
           // 调用FPV电影感增强模块
@@ -4540,6 +4592,10 @@ ${isNirath
           } catch (e) {
             this.log('STAGE-9', `  ⚠️ FPV运镜生成失败: ${e.message} | 回退到v4基础运镜`);
             movement = await this._generateV4FallbackMovement(shot);
+            this.fallbackMonitor.record('STAGE-9', {
+              shotId: shot.id,
+              reason: 'v4_fallback_movement'
+            });
           }
         } else {
           // 通用模式:标准运镜
@@ -4554,7 +4610,7 @@ ${isNirath
             const v4Result = await this.cameraMovementV4.generateIntraShotTimelineV4(
               {
                 id: shot.id,
-                sceneName: (shot.scene || '').split('-')[0]?.trim() || shot.scene || 'default',
+                sceneName: getSceneName(shot.scene, 'default').split('-')[0]?.trim() || getSceneName(shot.scene, 'default'),
                 sceneDescription: shot.scene || shot.description || '',
                 duration: shot.duration || 5,
                 emotionPhase: shot.emotionPhase || 'neutral',
@@ -4596,6 +4652,10 @@ ${isNirath
             } else {
               // v6.6.9.4-patch9: v4未生成时间轴，使用v4基础回退
               movement = await this._generateV4FallbackMovement(shot);
+              this.fallbackMonitor.record('STAGE-9', {
+                shotId: shot.id,
+                reason: 'v4_fallback_movement'
+              });
               previousShot = { timeline: movement.timeline };
             }
           } catch (e) {
@@ -4605,6 +4665,10 @@ ${isNirath
         } else {
           // v6.6.9.4-patch9: v3已移除，使用v4基础回退
             movement = await this._generateV4FallbackMovement(shot);
+            this.fallbackMonitor.record('STAGE-9', {
+              shotId: shot.id,
+              reason: 'v4_fallback_movement'
+            });
           previousShot = { timeline: movement.timeline };
         }
       }
@@ -4629,7 +4693,7 @@ ${isNirath
    * v6.6.9.4-patch9: v4基础回退方法（替代v3）
    */
   async _generateV4FallbackMovement(shot) {
-    const sceneName = (shot.scene || '').split('-')[0]?.trim() || shot.scene || 'default';
+    const sceneName = getSceneName(shot.scene, 'default').split('-')[0]?.trim() || getSceneName(shot.scene, 'default');
     const duration = shot.duration || 5;
     const timeline = {
       segments: [{
@@ -4835,7 +4899,7 @@ ${isNirath
       }
 
       // 检查4: 场景DNA是否可提取(场景名是否有效)
-      const sceneName = (shot.scene || '').split('-')[0]?.trim() || shot.scene;
+      const sceneName = getSceneName(shot.scene, 'default').split('-')[0]?.trim() || getSceneName(shot.scene, 'default');
       if (!sceneName || sceneName === 'default') {
         errors.push(`场景名无效: ${shot.scene}`);
       }
@@ -4981,6 +5045,7 @@ ${isNirath
 
     const prompts = [];
     const { storyboard, characters, camera } = stages;
+    storyboard.shots = normalizeRenderShots(storyboard.shots || []);
 
     let currentTime = 0; // v6.5.62: 累积时间跟踪
     for (let i = 0; i < storyboard.shots.length; i++) {
@@ -5517,6 +5582,10 @@ ${isNirath
           }
         } catch (e) {
           // v6.6.9.4-fix: 新链路异常不再降级，直接报错
+          this.fallbackMonitor.record('PROMPTFORGE', {
+            shotId: shot.id,
+            reason: e.message
+          });
           throw new Error(`STAGE-11 新链路异常: ${shot.id} | ${e.message} | 已触发重试机制但仍失败，终止预生产`);
         }
       }
@@ -6037,7 +6106,7 @@ ${isNirath
 
       // v6.5.1-fix: 预生产阶段注入定妆照路径标记(无base64,仅路径),让QualityGate通过渲染就绪度检查
       // v6.5.8-fix: 定妆照规范 v1.0 - 单镜头≤2张,根据景别选最佳角度
-      const referenceImages = [];
+      let referenceImages = [];
       // v6.5.6-fix: 角色ID映射修复(taotie → tao-tie)
       const charIdMap = { 'taotie': 'tao-tie', 'tao-tie': 'tao-tie' };
       // 根据镜头景别选最佳角度
@@ -6047,36 +6116,17 @@ ${isNirath
       for (const rawCharId of (shot.characters || [])) {
         const charId = charIdMap[rawCharId] || rawCharId;
         const char = stages.characters?.[charId];
-        if (!char?.portraits) continue;
-        // 选最佳角度:特写→closeup,全景→front,其他→threeQuarter
-        let bestAngle = isCloseup ? 'closeup' : (isWide ? 'front' : 'threeQuarter');
-        // 如果首选角度不存在,fallback到存在的第一个
-        if (!char.portraits[bestAngle]) {
-          for (const fallback of anglePriority) {
-            if (char.portraits[fallback]) {
-              bestAngle = fallback;
-              break;
-            }
-          }
-        }
-        const imagePath = char.portraits[bestAngle];
-        if (imagePath) {
-          referenceImages.push({
-            type: 'image_url',
-            image_url: { url: imagePath },
-            role: 'reference_image',
-            character: charId,
-            angle: bestAngle
-          });
-        }
+        if (!char) continue;
+        referenceImages = mergeReferenceImages(
+          referenceImages,
+          normalizePortraitMapToReferenceImages(charId, char.portraits || char.profile?.generatedAssets?.portraits)
+        );
       }
 
       // v6.5.3-fix: 将 referenceImages 也注入到 shot 对象,供 Stage 10.5 验证通过
       shot.referenceImages = referenceImages;
-      shot.content = shot.content || [];
-      for (const refImg of referenceImages) {
-        shot.content.push(refImg);
-      }
+      shot.content = Array.isArray(shot.content) ? shot.content : [];
+      shot.content = mergeReferenceImages(shot.content, referenceImages);
 
       // v6.5.3-fix: 最终强制保留【镜头时间轴】--无论之前任何步骤截断,在 push 前必须恢复
       // 根因:setDesignModule、motionEnhanced、finalFillPrompt 等多个步骤可能截断或覆盖 prompt
@@ -6959,6 +7009,7 @@ ${isNirath
       cameraMovements: stages.camera,
       prompts: stages.style,
       postProduction: stages.postProduction,
+      fallbackSummary: this.fallbackMonitor.summarize(),
       validation: {
         alignment: stages.alignment,
         schema: stages.schema,
@@ -6968,6 +7019,10 @@ ${isNirath
         integrity: integrityResult  // 新增
       }
     };
+
+    if (this.fallbackMonitor.hasCriticalFallback()) {
+      this.log('STAGE-16', '⚠️ 检测到关键阶段 fallback，本次结果不应视为完全真实成功');
+    }
 
     this.log('STAGE-16', `✅ 最终输出 | 镜头数: ${output.prompts?.length || 0} | 完整性验证: ${integrityResult.valid ? '通过' : '未通过'}`);
 
@@ -7600,7 +7655,7 @@ ${isNirath
     }
 
     if (result.length > PROMPT_LENGTH.HARD_MAX) {
-      result = result.substring(0, PROMPT_LENGTH.HARD_MAX);
+      result = safeStructuredTrim(result, PROMPT_LENGTH.HARD_MAX);
     }
 
     return result;
@@ -9331,7 +9386,7 @@ ${isNirath
     const warnings = [];
     for (const shot of shots) {
       const narration = shot.narration || '';
-      const prompt = shot.prompt || '';
+      const prompt = getPromptText(shot) || '';
 
       // 检查旁白动作是否有画面支撑
       const actionKeywords = ['触碰', '后退', '前进', '奔跑', '伸手'];

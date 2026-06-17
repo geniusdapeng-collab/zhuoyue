@@ -1,12 +1,15 @@
 'use strict';
 
 /**
- * Prompt Standard V3 - 完整替换版
+ * Prompt Standard V3 - 最终兼容版
+ *
  * 目标：
  * 1. 支持结构化标记检查
  * 2. 支持自然语言兜底检查
- * 3. 兼容旧链路输出
- * 4. 为 Stage-12 提供稳定的合规评分
+ * 3. 兼容旧链路自然语言 Prompt
+ * 4. 兼容当前系统两种 require 方式：
+ *    - const StandardV3 = require(...)
+ *    - const { checkStandardCompliance } = require(...)
  */
 
 const SEPARATOR = ' | ';
@@ -54,18 +57,23 @@ const FIELD_DEFINITIONS = {
   }
 };
 
+function safeText(prompt) {
+  return String(prompt || '');
+}
+
 function extractBlock(prompt, blockLabel) {
+  const text = safeText(prompt);
   const escaped = blockLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const regex = new RegExp(`${escaped}([^【]*)`, 'i');
-  const match = String(prompt || '').match(regex);
+  const match = text.match(regex);
   return match ? match[1].trim() : '';
 }
 
 function parsePrompt(prompt) {
-  const text = String(prompt || '');
+  const text = safeText(prompt);
   const fields = {};
 
-  // 优先按块提取
+  // 1. 优先按结构化块提取
   for (const [fieldName, def] of Object.entries(FIELD_DEFINITIONS)) {
     for (const blockPattern of def.blockMapping) {
       const content = extractBlock(text, blockPattern);
@@ -83,7 +91,7 @@ function parsePrompt(prompt) {
     return fields;
   }
 
-  // 兜底：按分隔符粗略切分
+  // 2. 兜底：按分隔符切分
   if (text.includes(SEPARATOR)) {
     const parts = text.split(SEPARATOR).map(s => s.trim()).filter(Boolean);
     if (parts.length > 0) {
@@ -96,43 +104,63 @@ function parsePrompt(prompt) {
     }
   }
 
+  // 3. 再兜底：整段文本
+  if (text.trim()) {
+    return {
+      RAW: {
+        content: text.trim(),
+        original: text.trim()
+      }
+    };
+  }
+
   return null;
 }
 
 function naturalLanguageChecks(prompt) {
-  const text = String(prompt || '');
+  const text = safeText(prompt);
 
   return {
     CHARACTER:
       /(?:角色|人物|男孩|女孩|男人|女人|少年|少女|女性|男性|人类|human|character|boy|girl|man|woman|\d+岁)/i.test(text),
+
     ACTION:
       /(?:伸手|奔跑|走近|凝视|抬头|低头|转身|说话|微笑|对视|触碰|冲刺|移动|动作|tracing|gripping|leaning|running|walking|speaking|gazing)/i.test(text),
+
     SCENE:
       /(?:场景|环境|山顶|森林|海边|室内|医院|教室|街道|客厅|荒原|雨林|诊室|病房|studio|room|hospital|forest|beach)/i.test(text),
+
     MOOD:
       /(?:温暖|治愈|紧张|压迫|震撼|平静|神秘|希望|悲伤|喜悦|愤怒|坚定|mysterious|epic|awe|warm|healing|tense|sad|joy|anger|calm)/i.test(text),
+
     CAMERA:
       /(?:推镜|拉镜|摇镜|移镜|跟拍|俯拍|仰拍|特写|中景|远景|dolly|pan|tilt|tracking|close-up|wide shot|medium shot)/i.test(text),
+
     LIGHTING:
       /(?:自然光|侧光|逆光|柔光|体积光|光影|色温|5800K|6500K|\b\d{4}K\b|golden hour|backlight|rim light|soft light)/i.test(text),
+
     NEGATIVE:
       /(?:no text|no watermark|no subtitle|no extra fingers|禁止|负面约束|全局负面约束)/i.test(text),
+
     AUDIO:
       /(?:伴随|动作产生|氛围弥漫|音乐线索|声画精准同步|环境音|音频|海浪|风声|脚步声|呼吸声)/i.test(text),
+
     RENDER:
       /(?:hyperrealistic|cinematic|35mm|HDR|超写实|电影级|photorealistic|film grain)/i.test(text),
+
     DIRECTOR:
       /(?:导演风格|Director style|导演|Villeneuve|Cameron|通用导演)/i.test(text)
   };
 }
 
 function structuredChecks(prompt) {
-  const text = String(prompt || '');
-
+  const text = safeText(prompt);
   const result = {};
+
   for (const [fieldName, def] of Object.entries(FIELD_DEFINITIONS)) {
     result[fieldName] = def.blockMapping.some(label => !!extractBlock(text, label));
   }
+
   return result;
 }
 
@@ -241,9 +269,32 @@ class StandardV3 {
   checkStandardCompliance(prompt, shotId) {
     return checkStandardCompliance(prompt, shotId);
   }
+
+  getFieldDefinitions() {
+    return FIELD_DEFINITIONS;
+  }
 }
 
-module.exports = StandardV3;
+/**
+ * 兼容当前系统：
+ * 1. require(...) 返回可用对象
+ * 2. 解构导出函数也可用
+ */
+function createCompatibleExport() {
+  const instance = new StandardV3();
+
+  // 让默认导出既像实例，也保留类能力
+  instance.StandardV3 = StandardV3;
+  instance.parsePrompt = parsePrompt;
+  instance.checkStandardCompliance = checkStandardCompliance;
+  instance.FIELD_DEFINITIONS = FIELD_DEFINITIONS;
+
+  return instance;
+}
+
+const compatibleExport = createCompatibleExport();
+
+module.exports = compatibleExport;
 module.exports.StandardV3 = StandardV3;
 module.exports.parsePrompt = parsePrompt;
 module.exports.checkStandardCompliance = checkStandardCompliance;
