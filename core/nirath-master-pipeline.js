@@ -1163,7 +1163,15 @@ class NirathMasterPipeline {
                   cleanedPrompt = this.ensureFinalPromptStructure(existingShot, cleanedPrompt);
                   cleanedPrompt = safeStructuredTrim(cleanedPrompt, PROMPT_LENGTH.HARD_MAX);
 
+                  // v6.6.9.4-patch17: PromptForge合并后重新注入定妆照绑定
+                  const renderMeta2 = this._buildRenderMetaForShot(existingShot, result.stages);
+                  if (renderMeta2.characterRef && !cleanedPrompt.includes('【定妆照】')) {
+                    cleanedPrompt = `【定妆照】${renderMeta2.characterRef} | ` + cleanedPrompt;
+                    cleanedPrompt = this.smartTrim(cleanedPrompt, PROMPT_LENGTH.HARD_MAX);
+                  }
+
                   existingShot.prompt = cleanedPrompt;
+                  existingShot.characterRef = renderMeta2.characterRef || '';
                   existingShot.length = cleanedPrompt.length;
                   existingShot.utilization = Math.round(cleanedPrompt.length / PROMPT_LENGTH.HARD_MAX * 100);
                   existingShot._promptForge = {
@@ -1936,6 +1944,22 @@ class NirathMasterPipeline {
     }
 
     script.scenes = normalizeDialogueShots(script.scenes || []);
+
+    // v6.6.9.4-patch17: 台词字数硬校验
+    const SPEECH_RATE = 5.0;
+    for (const scene of script.scenes) {
+      const duration = Number(scene.duration) || 5;
+      const maxChars = Math.floor(duration * SPEECH_RATE);
+      const dialogue = (scene.dialogue || '').toString();
+      if (dialogue.length > maxChars) {
+        const original = dialogue;
+        // 尝试在句子边界截断
+        const truncated = this._truncateAtSentenceBoundary(dialogue, maxChars);
+        scene.dialogue = truncated;
+        this.log('STAGE-5', `  ⚠️ ${scene.id} 台词超长(${original.length}字>${maxChars}字),已自动截断至${truncated.length}字`);
+      }
+    }
+
     return script;
   }
 
@@ -2554,6 +2578,34 @@ class NirathMasterPipeline {
     return `下面${sceneSpeaker}进入${name}。`;
   }
 
+  /**
+   * v6.6.9.4-patch17: 在句子边界截断台词，确保不超字数
+   */
+  _truncateAtSentenceBoundary(text, maxLen) {
+    if (!text || text.length <= maxLen) return text;
+    // 优先在句号、问号、感叹号处截断
+    const sentenceEndings = ['。', '？', '！', '?', '!', '；', ';'];
+    let bestIdx = -1;
+    for (let i = maxLen; i >= 0; i--) {
+      if (sentenceEndings.includes(text[i])) {
+        bestIdx = i + 1;
+        break;
+      }
+    }
+    // 如果没找到句子边界，退回到空格或逗号
+    if (bestIdx <= 0) {
+      for (let i = maxLen; i >= 0; i--) {
+        if (text[i] === '，' || text[i] === '、' || text[i] === ' ') {
+          bestIdx = i;
+          break;
+        }
+      }
+    }
+    // 如果还没有，直接硬截断
+    if (bestIdx <= 0) bestIdx = maxLen;
+    return text.substring(0, bestIdx).trim();
+  }
+
   _buildFallbackNarration(scene) {
     const desc = scene.description || `${scene.name || '该场景'}的补充说明`;
 
@@ -2657,9 +2709,10 @@ ${isNirath
 - ✅ 每镜台词必须独立原创,严禁复制其他镜的台词内容(每镜必须是全新对话,不能重复)
 - ✅ 结尾镜头(S05/closing)必须有完整的台词收束,不能以半截句子或单个字结束
 - ✅ 必须严格使用输入的场景名称,禁止修改或自创名称
+- ✅ 台词字数约束:每镜dialogue字数 ≤ 场景时长(秒) × 5.0字/秒。例如15秒场景,台词不超过75字；5秒场景,台词不超过25字。严禁超长台词！
 - 如果有多个角色,标注谁在说话
 - 台词要体现角色性格和情绪
-- 场景名称是中文,台词内容也必须匹配中文场景名所暗示的主题`;
+- 场景名称是中文,台词内容也必须匹配中文场景名所暗示的主题`;;
   }
 
   // ========== Stage 5.5: FPV镜头智能决策(导演创作权)==========
@@ -3562,9 +3615,11 @@ ${isNirath
   _buildCharacterRef(shot, stages) {
     if (!shot.characters || shot.characters.length === 0) return '';
 
+    // v6.6.9.4-patch17-fix: 使用与 _getCharacterStageMap 一致的路径
+    const characterMap = this._getCharacterStageMap(stages);
     const refs = [];
     for (const charId of shot.characters) {
-      const char = stages.characters?.[charId];
+      const char = characterMap[charId];
       if (!char) continue;
 
       // 获取角色名(优先使用profile.name)
@@ -5599,7 +5654,13 @@ ${isNirath
 
         // v6.5.44-fix: 新链路结果必须加入 render 数组,否则后续阶段丢失镜头
         // v6.5.58-fix: 构建标准输出字段
-        if (!prompts.find(p => p.shotId === shot.id)) {
+        const existingPrompt = prompts.find(p => p.shotId === shot.id);
+        const charRef = this._buildCharacterRef(shot, stages) || '';
+        const charMinimal = this._buildCharacterMinimal(shot, stages) || '';
+        const timeline = this._buildTimeline(shot, 0) || '';
+        const bgSound = this._buildBackgroundSound(shot) || '';
+        
+        if (!existingPrompt) {
           const standardOutput = {
             shotId: shot.id,
             id: shot.id,
@@ -5623,10 +5684,10 @@ ${isNirath
             dialogue: shot.dialogue || '',
             narration: shot.narration || '',
             // v6.5.62: 新增字段(基于参考v6.37-Peng优化)
-            characterRef: this._buildCharacterRef(shot, stages) || '',
-            character: this._buildCharacterMinimal(shot, stages) || '',
-            timeline: this._buildTimeline(shot, 0) || '',
-            backgroundSound: this._buildBackgroundSound(shot) || '',
+            characterRef: charRef,
+            character: charMinimal,
+            timeline: timeline,
+            backgroundSound: bgSound,
             isOpening: shot.id === 'S00' || shot.type === 'opening',
             // v6.5.59-fix: 片头注入title对象
             title: (shot.id === 'S00' || shot.type === 'opening') ? (shot.title || {
@@ -5658,6 +5719,14 @@ ${isNirath
           }
 
           prompts.push(standardOutput);
+        } else {
+          // v6.6.9.4-patch17-fix: 更新已存在的prompt对象，补充characterRef等字段
+          existingPrompt.characterRef = charRef;
+          existingPrompt.character = charMinimal;
+          existingPrompt.timeline = timeline;
+          existingPrompt.backgroundSound = bgSound;
+          existingPrompt.dialogue = shot.dialogue || existingPrompt.dialogue || '';
+          existingPrompt.narration = shot.narration || existingPrompt.narration || '';
         }
 
         this.log('STAGE-11', `  ✅ 新链路渲染: ${shot.id} | 10字段结构 | ${prompt.length}字符`);
@@ -6426,6 +6495,17 @@ ${isNirath
       }
 
       prompt = this._ensureOutfitMentioned(prompt, renderMeta);
+
+      // v6.6.9.4-patch17: 注入定妆照绑定引用
+      if (renderMeta.characterRef) {
+        const portraitPrefix = `【定妆照】${renderMeta.characterRef} | `;
+        // 检查是否已存在定妆照字段，避免重复
+        if (!prompt.includes('【定妆照】')) {
+          prompt = portraitPrefix + prompt;
+        }
+      }
+
+      shot.characterRef = renderMeta.characterRef || '';
 
       if (prompt.length > PROMPT_LENGTH.HARD_MAX) {
         prompt = this.smartTrim(prompt, PROMPT_LENGTH.HARD_MAX);
@@ -9637,11 +9717,16 @@ ${isNirath
         if (anchor) anchors.push(anchor);
       }
     }
+
+    // v6.6.9.4-patch17: 构建定妆照绑定引用
+    const characterRef = this._buildCharacterRef(shot, stages);
+
     return {
       characterIds,
       characters: detailedCharacters,
       characterAnchors: anchors,
-      mergedCharacterAnchor: anchors.join('；')
+      mergedCharacterAnchor: anchors.join('；'),
+      characterRef  // 定妆照引用路径
     };
   }
 

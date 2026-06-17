@@ -101,7 +101,14 @@ function buildStandardPromptFromShot(shot = {}) {
     '通用导演风格'
   );
 
+  const portrait = pickFirst(
+    extractByRegex(rawPrompt, /【定妆照】([^【]*)/),
+    shot.characterRef,
+    ''
+  );
+
   const parts = [
+    portrait ? `【定妆照】${portrait}` : '',
     `【视觉】${visual}`,
     `【动作】${action}`,
     `【环境布景】${scene}`,
@@ -113,7 +120,7 @@ function buildStandardPromptFromShot(shot = {}) {
     `【环境音效】${audio}`,
     `【技术规格】${render}`,
     `【导演】${director}`
-  ];
+  ].filter(Boolean);
 
   if (shot.dialogue && String(shot.dialogue).trim()) {
     parts.push(`【台词】${String(shot.dialogue).trim()}`);

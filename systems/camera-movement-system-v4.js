@@ -515,18 +515,33 @@ class LLMTimelineGenerator {
       .filter(Boolean)
       .join(', ') || '无';
     
-    return `只输出一个合法JSON对象。
-为镜头生成${segmentCount}段运镜方案。
-场景:${sceneAnalysis.sceneName || '未命名'}
-类型:${sceneAnalysis.sceneTypeName || '讲解'}
-时长:${sceneAnalysis.duration}秒
-情绪:${sceneAnalysis.emotionPhase || 'neutral'}
-人物:${chars}
-台词:${(sceneAnalysis.dialogue || '').slice(0, 100)}
-限制:可用景别[${(sceneAnalysis.constraints?.preferred || ['medium']).join(',')}],禁用[${(sceneAnalysis.constraints?.forbidden || []).join(',') || '无'}]
+    return `你是一位专业导演。为镜头设计${segmentCount}段运镜时间轴。
+
+【场景信息】
+- 场景名称:${sceneAnalysis.sceneName || '未命名'}
+- 场景类型:${sceneAnalysis.sceneTypeName || '讲解'}
+- 总时长:${sceneAnalysis.duration}秒
+- 情绪阶段:${sceneAnalysis.emotionPhase || 'neutral'}
+- 人物:${chars}
+- 台词/内容:${(sceneAnalysis.dialogue || '').slice(0, 150)}
+
+【时间轴设计要求】
+1. 每段必须分配具体的时间段（格式: 0.0-2.5，单位秒）
+2. 时间分配必须基于情绪节奏，不能均分！
+3. 情绪紧张/高潮部分应给更多时间，铺垫/过渡部分可压缩
+4. 首段用于建立空间感，尾段用于收束/强化
+5. 每段必须包含：时间范围、景别、具体运镜动作（含数字）、速度、设计理由
+
+【输出格式】
+只输出一个合法JSON对象，不要任何解释或markdown。
 JSON字段: strategy, reasoning, segments
 segments每项字段: timeRange, shotSize, movement, speed, reason
-movement必须含具体数字(厘米/度/秒)，strategy必须是具体名称，不得写"策略名"。`;
+
+【约束】
+- timeRange必须是 "起始-结束" 格式（如 "0.0-3.5"），总时长${sceneAnalysis.duration}秒
+- movement必须含具体数字（厘米、度、秒）
+- strategy必须是具体策略名称（如"渐进压迫式讲解"），不能写"策略名"
+- 时间分配体现导演意图：哪段应该长、哪段应该短、为什么`;
   }
 }
 
