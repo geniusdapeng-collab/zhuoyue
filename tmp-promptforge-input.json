@@ -1,0 +1,21 @@
+{
+  "projectConfig": {
+    "theme": "测试主题",
+    "mode": "generic"
+  },
+  "rawReport": {
+    "shots": [
+      {
+        "id": "S01",
+        "scene": "医院诊室",
+        "visualPrompt": "一位医生在诊室中面对镜头讲解横纹肌溶解的风险",
+        "dialogue": "大家好，今天我们来了解横纹肌溶解。",
+        "emotionPhase": "professional",
+        "duration": 5,
+        "cameraMovement": {
+          "description": "中景稳定构图"
+        }
+      }
+    ]
+  }
+}

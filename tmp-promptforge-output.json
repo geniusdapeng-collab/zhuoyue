@@ -1,0 +1,47 @@
+{
+  "success": true,
+  "directorIntent": {
+    "theme": "测试主题",
+    "visualTone": "专业冷静、清晰明亮的医疗科普纪实",
+    "narrativeStrategy": "权威专家直面观众的直接科普与风险告知",
+    "directorStyle": "稳重客观、信息优先的临床观察式执导",
+    "coreEmotion": "专业信赖与理性安心",
+    "fallbackUsed": false
+  },
+  "shots": [
+    {
+      "id": "S01",
+      "shotId": "S01",
+      "finalPrompt": "医疗科普纪实风格，专业冷静、清晰明亮。医院诊室内，中景稳定构图，自然光照且明暗层次清晰，画面通透干净。一位权威医生身着白大褂正面端坐、直视镜头，表情沉稳自信且极具亲和力，正向观众进行直接科普与风险告知，讲解横纹肌溶解。临床观察式执导视角，稳重客观，信息优先；增强主体清晰度与镜头叙事性，传递专业信赖与理性安心的情绪基调，完成权威可信的专业建立。4K高清，写实医疗场景，明亮通透。",
+      "dialogue": "大家好，今天我们来了解横纹肌溶解。",
+      "dialogueDepth": "L0",
+      "emotionArc": [
+        "专业建立",
+        "理性安心"
+      ],
+      "cameraDesign": "中景稳定构图",
+      "lightingDesign": "自然光照，明暗层次清晰",
+      "visualElements": "一位医生在诊室中面对镜头讲解横纹肌溶解的风险",
+      "performance": "情绪基调: professional",
+      "promptEnhancement": "增强主体清晰度与镜头叙事性",
+      "fallbackUsed": true
+    }
+  ],
+  "qualityReport": {
+    "overallScore": 75,
+    "overallPassed": true,
+    "fallbackCount": 1,
+    "shotDetails": [
+      {
+        "shotId": "S01",
+        "structureScore": 3,
+        "lengthScore": 0,
+        "cameraPassed": true,
+        "totalScore": 75,
+        "fallbackUsed": true
+      }
+    ]
+  },
+  "fallbackUsed": true,
+  "fallbackCount": 1
+}

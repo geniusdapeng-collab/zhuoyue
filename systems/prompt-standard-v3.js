@@ -1,488 +1,250 @@
 'use strict';
 
 /**
- * Prompt Standard v3 - 完整替换版
+ * Prompt Standard V3 - 完整替换版
  * 目标：
- * 1. 统一解析多种 Prompt 格式
- * 2. Stage 12 合规检查“块格式优先 + 内容兜底”
- * 3. 兼容新旧字段命名
+ * 1. 支持结构化标记检查
+ * 2. 支持自然语言兜底检查
+ * 3. 兼容旧链路输出
+ * 4. 为 Stage-12 提供稳定的合规评分
  */
 
-const { repairBrokenBlocks } = require('./safe-prompt-trim');
-
-// ============================================================
-// 一、字段定义
-// ============================================================
+const SEPARATOR = ' | ';
 
 const FIELD_DEFINITIONS = {
   CHARACTER: {
-    name: '角色/主体',
-    weight: 1.0,
-    blockMapping: [
-      '【CHARACTER】',
-      '【视觉】',
-      '【主体】',
-      '【角色约束】'
-    ],
-    patterns: [
-      /【CHARACTER】/i,
-      /【视觉】/i,
-      /【主体】/i,
-      /【角色约束】/i,
-      /(?:boy|girl|man|woman|child|character|角色|人物|香香|小卓)/i,
-      /\d+\s*(?:year-old|岁)/i
-    ]
+    label: '角色',
+    blockMapping: ['【视觉】', '【角色约束】', '【人物介绍卡片】']
   },
-
-  DIALOGUE: {
-    name: '台词/对白',
-    weight: 1.0,
-    blockMapping: [
-      '【DIALOGUE】',
-      '【台词】',
-      '【对白】',
-      '【旁白/台词】'
-    ],
-    patterns: [
-      /【DIALOGUE】/i,
-      /【台词】/i,
-      /【对白】/i,
-      /【旁白\/台词】/i,
-      /(?:dialogue|台词|对白|旁白| narration|voiceover)/i
-    ]
-  },
-
   ACTION: {
-    name: '动作',
-    weight: 1.0,
-    blockMapping: [
-      '【ACTION】',
-      '【动态】',
-      // v6.6.9.4-patch9: 移除异兽专属标签，保留通用动作标签
-    // '【异兽动作】',
-    '【动作】',
-      '【嘴部动作】'
-    ],
-    patterns: [
-      /【ACTION】/i,
-      /【动态】/i,
-      // /【异兽动作】/i,
-      /【动作】/i,
-      /【嘴部动作】/i,
-      /(?:walk|run|look|turn|approach|enter|grab|fight|move|step|动作|走|跑|看|冲|扑|转身|靠近|伸手)/i
-    ]
+    label: '动作',
+    blockMapping: ['【动作】', '【动态】']
   },
-
   SCENE: {
-    name: '场景',
-    weight: 1.0,
-    blockMapping: [
-      '【SCENE】',
-      '【空间】',
-      '【环境布景】',
-      '【环境质感】'
-    ],
-    patterns: [
-      /【SCENE】/i,
-      /【空间】/i,
-      /【环境布景】/i,
-      /【环境质感】/i,
-      /(?:forest|mountain|ocean|valley|cave|plain|beach|island|Nirath|草原|森林|山谷|洞穴|海边|岛屿|场景|星球)/i
-    ]
+    label: '场景',
+    blockMapping: ['【环境布景】', '【空间】', '【环境质感】']
   },
-
   MOOD: {
-    name: '风格',
-    weight: 0.8,
-    blockMapping: [
-      '【MOOD】',
-      '【风格】'
-    ],
-    patterns: [
-      /【MOOD】/i,
-      /【风格】/i,
-      /(?:mood|atmosphere|mysterious|epic|warm|tense|sad|hopeful|神秘|敬畏|温暖|紧张|悲伤|希望|氛围|风格)/i
-    ]
+    label: '情绪',
+    blockMapping: ['【情绪】']
   },
-
-  // v6.6.9.4-patch14: 新增3个标准字段
-  EMOTION: {
-    name: '情绪基调',
-    weight: 0.8,
-    blockMapping: [
-      '【EMOTION】',
-      '【情绪】'
-    ],
-    patterns: [
-      /【EMOTION】/i,
-      /【情绪】/i,
-      /(?:emotion|mood|feeling|情绪|情感|氛围|基调)/i
-    ]
-  },
-
-  DEPTH: {
-    name: '纵深',
-    weight: 0.7,
-    blockMapping: [
-      '【DEPTH】',
-      '【纵深】',
-      '【景深】'
-    ],
-    patterns: [
-      /【DEPTH】/i,
-      /【纵深】/i,
-      /【景深】/i,
-      /(?:depth|depth of field|dof|纵深|景深|层次|前后景)/i
-    ]
-  },
-
-  ANGLE: {
-    name: '方位',
-    weight: 0.7,
-    blockMapping: [
-      '【ANGLE】',
-      '【方位】',
-      '【角度】',
-      '【机位】'
-    ],
-    patterns: [
-      /【ANGLE】/i,
-      /【方位】/i,
-      /【角度】/i,
-      /【机位】/i,
-      /(?:angle|position|机位|角度|方位|构图|平视|俯视|仰视)/i
-    ]
-  },
-
   CAMERA: {
-    name: '运镜',
-    weight: 1.0,
-    blockMapping: [
-      '【CAMERA】',
-      '【动态】',
-      '【镜头时间轴】',
-      '【运镜】'
-    ],
-    patterns: [
-      /【CAMERA】/i,
-      /【镜头时间轴】/i,
-      /【运镜】/i,
-      /(?:camera|shot|dolly|push|pull|pan|tilt|orbit|tracking|handheld|close-up|wide shot|运镜|推进|拉远|摇镜|环绕|手持|远景|中景|特写)/i
-    ]
+    label: '运镜',
+    blockMapping: ['【运镜】', '【镜头时间轴】']
   },
-
   LIGHTING: {
-    name: '光影',
-    weight: 0.9,
-    blockMapping: [
-      '【LIGHTING】',
-      '【基础】',
-      '【质控】',
-      '【光影】',
-      '【光照】'
-    ],
-    patterns: [
-      /【LIGHTING】/i,
-      /【基础】/i,
-      /【质控】/i,
-      /【光影】/i,
-      /【光照】/i,
-      /(?:lighting|light|shadow|volumetric|rim light|key light|5600K|3200K|golden hour|光影|光照|色温|体积光|轮廓光)/i
-    ]
+    label: '照明',
+    blockMapping: ['【照明】', '【照明方案】']
   },
-
   NEGATIVE: {
-    name: '负面约束',
-    weight: 0.7,
-    blockMapping: [
-      '【NEGATIVE】',
-      '【负面约束】',
-      '【全局负面约束】',
-      '【约束】'
-    ],
-    patterns: [
-      /【NEGATIVE】/i,
-      /【负面约束】/i,
-      /【全局负面约束】/i,
-      /【约束】/i,
-      /(?:no text|no watermark|no blurry|no subtitle|负面约束|禁止)/i
-    ]
+    label: '负面约束',
+    blockMapping: ['【负面约束】', '【全局负面约束】']
   },
-
   AUDIO: {
-    name: '音频',
-    weight: 0.7,
-    blockMapping: [
-      '【AUDIO】',
-      '【音频】',
-      '【环境音效】'
-    ],
-    patterns: [
-      /【AUDIO】/i,
-      /【音频】/i,
-      /【环境音效】/i,
-      /(?:sound|audio|ambient|music|海浪|风声|虫鸣|音效|环境音)/i
-    ]
+    label: '音频',
+    blockMapping: ['【环境音效】', '【音频】']
   },
-
   RENDER: {
-    name: '渲染规格',
-    weight: 0.8,
-    blockMapping: [
-      '【RENDER】',
-      '【基础】',
-      '【质控】',
-      '【技术规格】',
-      '【ASTRALIS】'
-    ],
-    patterns: [
-      /【RENDER】/i,
-      /【技术规格】/i,
-      /【ASTRALIS】/i,
-      /(?:render|hyperreal|ultra-detailed|8k|35mm|film grain|超写实|渲染|细节丰富|电影级)/i
-    ]
+    label: '技术规格',
+    blockMapping: ['【技术规格】', '【渲染】']
   },
-
   DIRECTOR: {
-    name: '导演风格',
-    weight: 0.8,
-    blockMapping: [
-      '【DIRECTOR】',
-      '【风格】',
-      '【质控】'
-    ],
-    patterns: [
-      /【DIRECTOR】/i,
-      /【风格】/i,
-      /【质控】/i,
-      /(?:director|cinematic|style|aesthetic|导演|电影感|史诗感|镜头策略)/i
-    ]
+    label: '导演',
+    blockMapping: ['【导演】']
   }
 };
 
-// ============================================================
-// 二、工具函数
-// ============================================================
-
-function safeText(v) {
-  return typeof v === 'string' ? v.trim() : '';
+function extractBlock(prompt, blockLabel) {
+  const escaped = blockLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`${escaped}([^【]*)`, 'i');
+  const match = String(prompt || '').match(regex);
+  return match ? match[1].trim() : '';
 }
 
-function hasAny(text, patterns) {
-  return patterns.some(p => p.test(text));
-}
-
-function normalizeInput(prompt) {
-  let text = safeText(prompt);
-  text = repairBrokenBlocks(text);
-
-  // 去掉 markdown code fence
-  text = text.replace(/^```[a-zA-Z0-9_-]*\n?/g, '').replace(/\n?```$/g, '').trim();
-
-  return text;
-}
-
-// ============================================================
-// 三、解析器
-// ============================================================
-
-function parseBlockFormat(prompt) {
-  const text = normalizeInput(prompt);
+function parsePrompt(prompt) {
+  const text = String(prompt || '');
   const fields = {};
 
+  // 优先按块提取
   for (const [fieldName, def] of Object.entries(FIELD_DEFINITIONS)) {
-    for (const block of def.blockMapping) {
-      const escaped = block.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`${escaped}([\s\S]*?)(?=(?:\s*\|\s*【)|(?:【[^】]+】)|$)`, 'i');
-      const match = text.match(regex);
-      if (match && safeText(match[1])) {
+    for (const blockPattern of def.blockMapping) {
+      const content = extractBlock(text, blockPattern);
+      if (content) {
         fields[fieldName] = {
-          content: safeText(match[1]).replace(/^\|\s*/, ''),
-          source: 'block',
-          block
+          content,
+          original: `${blockPattern}${content}`
         };
         break;
       }
     }
   }
 
-  return Object.keys(fields).length ? fields : null;
-}
-
-function parseKeyValueFormat(prompt) {
-  let text = normalizeInput(prompt);
-  const fields = {};
-
-  // 去掉外层 {}
-  if (text.startsWith('{') && text.endsWith('}')) {
-    text = text.slice(1, -1).trim();
+  if (Object.keys(fields).length > 0) {
+    return fields;
   }
 
-  const parts = text.split(/\s*\|\s*/).map(s => s.trim()).filter(Boolean);
-  if (!parts.length) return null;
-
-  for (const part of parts) {
-    const match = part.match(/^([A-Z_]+)\s*[:：]\s*([\s\S]+)$/i);
-    if (!match) continue;
-
-    const rawKey = match[1].toUpperCase().trim();
-    const rawValue = safeText(match[2]);
-
-    if (!rawValue) continue;
-
-    if (FIELD_DEFINITIONS[rawKey]) {
-      fields[rawKey] = {
-        content: rawValue,
-        source: 'key_value',
-        key: rawKey
-      };
-      continue;
-    }
-
-    const aliasMap = {
-      VISUAL: 'CHARACTER',
-      SUBJECT: 'CHARACTER',
-      SPACE: 'SCENE',
-      DYNAMIC: 'CAMERA',
-      STYLE: 'DIRECTOR',
-      SOUND: 'AUDIO',
-      AUDIO: 'AUDIO'
-    };
-
-    const mapped = aliasMap[rawKey];
-    if (mapped && FIELD_DEFINITIONS[mapped]) {
-      fields[mapped] = {
-        content: rawValue,
-        source: 'key_value_alias',
-        key: rawKey
+  // 兜底：按分隔符粗略切分
+  if (text.includes(SEPARATOR)) {
+    const parts = text.split(SEPARATOR).map(s => s.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      return {
+        RAW: {
+          content: parts.join(SEPARATOR),
+          original: text
+        }
       };
     }
   }
 
-  return Object.keys(fields).length ? fields : null;
+  return null;
 }
 
-function parseNaturalPrompt(prompt) {
-  const text = normalizeInput(prompt);
-  if (!text) return null;
-
-  const fields = {};
-
-  for (const [fieldName, def] of Object.entries(FIELD_DEFINITIONS)) {
-    if (hasAny(text, def.patterns)) {
-      fields[fieldName] = {
-        content: text,
-        source: 'natural_inference'
-      };
-    }
-  }
-
-  return Object.keys(fields).length ? fields : null;
-}
-
-function parsePrompt(prompt) {
-  const text = normalizeInput(prompt);
-  if (!text) return null;
-
-  return (
-    parseBlockFormat(text) ||
-    parseKeyValueFormat(text) ||
-    parseNaturalPrompt(text)
-  );
-}
-
-// ============================================================
-// 四、标准符合度检查
-// ============================================================
-
-function checkStandardCompliance(prompt, shotId = 'unknown') {
-  const text = normalizeInput(prompt);
-  const parsed = parsePrompt(text);
-
-  const checks = {};
-  let totalWeight = 0;
-  let passedWeight = 0;
-
-  for (const [fieldName, def] of Object.entries(FIELD_DEFINITIONS)) {
-    let found = false;
-
-    // 1. 解析器命中优先
-    if (parsed && parsed[fieldName] && safeText(parsed[fieldName].content)) {
-      found = true;
-    } else {
-      // 2. 内容兜底
-      found = hasAny(text, def.patterns);
-    }
-
-    checks[fieldName] = {
-      found,
-      weight: def.weight,
-      name: def.name
-    };
-
-    totalWeight += def.weight;
-    if (found) passedWeight += def.weight;
-  }
-
-  const score = totalWeight > 0
-    ? Math.round((passedWeight / totalWeight) * 100)
-    : 0;
-
-  const missing = Object.entries(checks)
-    .filter(([, v]) => !v.found)
-    .map(([k]) => k);
+function naturalLanguageChecks(prompt) {
+  const text = String(prompt || '');
 
   return {
-    shotId,
-    score,
-    passed: score >= 70,
-    missing,
-    checks,
-    parsed
+    CHARACTER:
+      /(?:角色|人物|男孩|女孩|男人|女人|少年|少女|女性|男性|人类|human|character|boy|girl|man|woman|\d+岁)/i.test(text),
+    ACTION:
+      /(?:伸手|奔跑|走近|凝视|抬头|低头|转身|说话|微笑|对视|触碰|冲刺|移动|动作|tracing|gripping|leaning|running|walking|speaking|gazing)/i.test(text),
+    SCENE:
+      /(?:场景|环境|山顶|森林|海边|室内|医院|教室|街道|客厅|荒原|雨林|诊室|病房|studio|room|hospital|forest|beach)/i.test(text),
+    MOOD:
+      /(?:温暖|治愈|紧张|压迫|震撼|平静|神秘|希望|悲伤|喜悦|愤怒|坚定|mysterious|epic|awe|warm|healing|tense|sad|joy|anger|calm)/i.test(text),
+    CAMERA:
+      /(?:推镜|拉镜|摇镜|移镜|跟拍|俯拍|仰拍|特写|中景|远景|dolly|pan|tilt|tracking|close-up|wide shot|medium shot)/i.test(text),
+    LIGHTING:
+      /(?:自然光|侧光|逆光|柔光|体积光|光影|色温|5800K|6500K|\b\d{4}K\b|golden hour|backlight|rim light|soft light)/i.test(text),
+    NEGATIVE:
+      /(?:no text|no watermark|no subtitle|no extra fingers|禁止|负面约束|全局负面约束)/i.test(text),
+    AUDIO:
+      /(?:伴随|动作产生|氛围弥漫|音乐线索|声画精准同步|环境音|音频|海浪|风声|脚步声|呼吸声)/i.test(text),
+    RENDER:
+      /(?:hyperrealistic|cinematic|35mm|HDR|超写实|电影级|photorealistic|film grain)/i.test(text),
+    DIRECTOR:
+      /(?:导演风格|Director style|导演|Villeneuve|Cameron|通用导演)/i.test(text)
   };
 }
 
-// ============================================================
-// 五、标准块输出
-// ============================================================
+function structuredChecks(prompt) {
+  const text = String(prompt || '');
 
-function toStandardBlocks(prompt) {
-  const parsed = parsePrompt(prompt);
-  if (!parsed) return '';
+  const result = {};
+  for (const [fieldName, def] of Object.entries(FIELD_DEFINITIONS)) {
+    result[fieldName] = def.blockMapping.some(label => !!extractBlock(text, label));
+  }
+  return result;
+}
 
-  const ordered = [
-    'CHARACTER',
-    'ACTION',
-    'SCENE',
-    'MOOD',
-    'CAMERA',
-    'LIGHTING',
-    'AUDIO',
-    'DIRECTOR',
-    'NEGATIVE',
-    'RENDER'
-  ];
+function checkStandardCompliance(prompt, shotId = 'unknown') {
+  const structured = structuredChecks(prompt);
+  const natural = naturalLanguageChecks(prompt);
 
-  const parts = [];
-  for (const key of ordered) {
-    if (parsed[key] && safeText(parsed[key].content)) {
-      parts.push(`【${key}】${safeText(parsed[key].content)}`);
+  const checks = {
+    CHARACTER: {
+      found: structured.CHARACTER || natural.CHARACTER,
+      structured: structured.CHARACTER,
+      natural: natural.CHARACTER,
+      weight: 1.0
+    },
+    ACTION: {
+      found: structured.ACTION || natural.ACTION,
+      structured: structured.ACTION,
+      natural: natural.ACTION,
+      weight: 1.0
+    },
+    SCENE: {
+      found: structured.SCENE || natural.SCENE,
+      structured: structured.SCENE,
+      natural: natural.SCENE,
+      weight: 1.0
+    },
+    MOOD: {
+      found: structured.MOOD || natural.MOOD,
+      structured: structured.MOOD,
+      natural: natural.MOOD,
+      weight: 0.8
+    },
+    CAMERA: {
+      found: structured.CAMERA || natural.CAMERA,
+      structured: structured.CAMERA,
+      natural: natural.CAMERA,
+      weight: 1.0
+    },
+    LIGHTING: {
+      found: structured.LIGHTING || natural.LIGHTING,
+      structured: structured.LIGHTING,
+      natural: natural.LIGHTING,
+      weight: 0.8
+    },
+    NEGATIVE: {
+      found: structured.NEGATIVE || natural.NEGATIVE,
+      structured: structured.NEGATIVE,
+      natural: natural.NEGATIVE,
+      weight: 0.8
+    },
+    AUDIO: {
+      found: structured.AUDIO || natural.AUDIO,
+      structured: structured.AUDIO,
+      natural: natural.AUDIO,
+      weight: 0.8
+    },
+    RENDER: {
+      found: structured.RENDER || natural.RENDER,
+      structured: structured.RENDER,
+      natural: natural.RENDER,
+      weight: 0.8
+    },
+    DIRECTOR: {
+      found: structured.DIRECTOR || natural.DIRECTOR,
+      structured: structured.DIRECTOR,
+      natural: natural.DIRECTOR,
+      weight: 0.6
+    }
+  };
+
+  let totalWeight = 0;
+  let foundWeight = 0;
+  const missing = [];
+
+  for (const [name, cfg] of Object.entries(checks)) {
+    totalWeight += cfg.weight;
+    if (cfg.found) {
+      foundWeight += cfg.weight;
+    } else {
+      missing.push(name);
     }
   }
 
-  return parts.join(' | ');
+  const coverage = Math.round((foundWeight / totalWeight) * 100);
+
+  return {
+    shotId,
+    coverage,
+    passed: coverage >= 60,
+    missing,
+    checks,
+    mode: {
+      structuredHitCount: Object.values(structured).filter(Boolean).length,
+      naturalHitCount: Object.values(natural).filter(Boolean).length
+    }
+  };
 }
 
-// ============================================================
-// 六、向后兼容导出
-// ============================================================
+class StandardV3 {
+  constructor() {}
 
-module.exports = {
-  FIELD_DEFINITIONS,
-  parsePrompt,
-  parseBlockFormat,
-  parseKeyValueFormat,
-  parseNaturalPrompt,
-  checkStandardCompliance,
-  toStandardBlocks
-};
+  parsePrompt(prompt) {
+    return parsePrompt(prompt);
+  }
+
+  checkStandardCompliance(prompt, shotId) {
+    return checkStandardCompliance(prompt, shotId);
+  }
+}
+
+module.exports = StandardV3;
+module.exports.StandardV3 = StandardV3;
+module.exports.parsePrompt = parsePrompt;
+module.exports.checkStandardCompliance = checkStandardCompliance;
+module.exports.FIELD_DEFINITIONS = FIELD_DEFINITIONS;

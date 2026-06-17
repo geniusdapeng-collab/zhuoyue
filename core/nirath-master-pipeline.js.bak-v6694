@@ -39,8 +39,6 @@ const { standardizePrompt } = require('../systems/prompt-standardizer');
 const { safeTrimPrompt } = require('../systems/safe-prompt-trim');
 const { checkStandardCompliance } = require('../systems/prompt-standard-v3');
 const { processShotsForCompliance, processShotsForOutput, summarizeCompliance } = require('../systems/prompt-pipeline-bridge');
-const { buildStandardPromptFromShot } = require('../systems/prompt-standard-bridge');
-const { safeStructuredTrim } = require('../systems/safe-structured-trim');
 
 // ========== 新增:镜头内Prompt增强器(v6.0-patch23融入) ==========
 const { buildAudioDescription, injectAudioDescription } = require('../systems/intra-shot-prompt-enhancer.js');
@@ -903,32 +901,6 @@ class NirathMasterPipeline {
         }
       }
 
-      // ===== v6.6.9.4-fix: Stage-12 前强制标准化 Prompt =====
-      if (Array.isArray(result.stages.render)) {
-        result.stages.render = result.stages.render.map((shot) => {
-          const standardizedPrompt = buildStandardPromptFromShot({
-            ...shot,
-            prompt: shot.prompt,
-            dialogue: shot.dialogue,
-            visualPrompt: shot.visualPrompt,
-            cameraString: shot.cameraString || shot.cameraMovement?.description || '',
-            lightingString: shot.lightingString || shot.lighting?.description || '',
-            backgroundSoundString: shot.backgroundSoundString || shot.audioLayerString || ''
-          });
-
-          const safePrompt = safeStructuredTrim(standardizedPrompt, PROMPT_LENGTH.HARD_MAX);
-
-          return {
-            ...shot,
-            _originalPrompt: shot.prompt,
-            prompt: safePrompt,
-            length: safePrompt.length
-          };
-        });
-
-        this.log('PIPELINE', `🧱 Stage-12前标准化完成 | shots=${result.stages.render.length}`);
-      }
-
       result.stages.compliance = await runStage('STAGE-12', () => this.stageCompliance(result.stages.render, result.stages.storyboard));
       this._injectCreativeIntensity('STAGE-12', result.stages.compliance);
 
@@ -1116,7 +1088,6 @@ class NirathMasterPipeline {
                   // v6.6.9.4-patch14: 合并后强制转换为中文标准字段格式
                   cleanedPrompt = this.toStandardPrompt(existingShot, cleanedPrompt);
                   cleanedPrompt = this.ensureFinalPromptStructure(existingShot, cleanedPrompt);
-                  cleanedPrompt = safeStructuredTrim(cleanedPrompt, PROMPT_LENGTH.HARD_MAX);
 
                   existingShot.prompt = cleanedPrompt;
                   existingShot.length = cleanedPrompt.length;
@@ -6248,18 +6219,6 @@ ${isNirath
       // 最后兜底,补齐缺失字段
       prompt = this.ensureFinalPromptStructure(shot, prompt);
 
-      // v6.6.9.4-fix: Stage-11 最终标准化兜底
-      prompt = buildStandardPromptFromShot({
-        ...shot,
-        prompt,
-        dialogue: shot.dialogue,
-        visualPrompt: shot.visualPrompt,
-        cameraString: shot.cameraMovement?.description || shot.cameraString || '',
-        lightingString: shot.lighting?.description || shot.lightingString || '',
-        backgroundSoundString: shot.backgroundSoundString || shot.audioLayerString || ''
-      });
-      prompt = safeStructuredTrim(prompt, PROMPT_LENGTH.HARD_MAX);
-
       // v6.5.58-fix: 构建标准输出字段,确保与schema一致
       const standardOutput = {
         shotId: shot.id,
@@ -7447,15 +7406,9 @@ ${isNirath
     if (Array.isArray(shot.characters) && shot.characters.length > 0) {
       const charRefs = [];
       for (const charId of shot.characters) {
-        // v6.6.9.4-fix: 同步读取角色卡片（loadCharacter是async，不能同步调用）
-        let portraits = [];
-        try {
-          const cardPath = require('path').join(process.cwd(), 'characters', charId, 'character-card.json');
-          const cardData = JSON.parse(require('fs').readFileSync(cardPath, 'utf8'));
-          portraits = cardData.generatedAssets?.portraits || cardData.v2Metadata?.portraitPaths || [];
-        } catch (e) {
-          // 文件不存在或其他错误，保持空数组
-        }
+        // 检查角色是否有定妆照
+        const charProfile = this.modules.characterManager?.loadCharacter?.(charId);
+        const portraits = charProfile?.generatedAssets?.portraits || charProfile?.v2Metadata?.portraitPaths || [];
         if (portraits.length > 0) {
           charRefs.push(`${charId}: ${portraits.slice(0, 4).join(', ')}`);
         } else {
@@ -7524,7 +7477,7 @@ ${isNirath
       }
     }
 
-    return safeStructuredTrim(result, PROMPT_LENGTH.HARD_MAX);
+    return result;
   }
 
   ensureFinalPromptStructure(shot, prompt) {
