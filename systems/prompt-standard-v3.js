@@ -92,18 +92,65 @@ const FIELD_DEFINITIONS = {
   },
 
   MOOD: {
-    name: '情绪',
+    name: '风格',
     weight: 0.8,
     blockMapping: [
       '【MOOD】',
-      '【风格】',
-      '【情绪】'
+      '【风格】'
     ],
     patterns: [
       /【MOOD】/i,
       /【风格】/i,
+      /(?:mood|atmosphere|mysterious|epic|warm|tense|sad|hopeful|神秘|敬畏|温暖|紧张|悲伤|希望|氛围|风格)/i
+    ]
+  },
+
+  // v6.6.9.4-patch14: 新增3个标准字段
+  EMOTION: {
+    name: '情绪基调',
+    weight: 0.8,
+    blockMapping: [
+      '【EMOTION】',
+      '【情绪】'
+    ],
+    patterns: [
+      /【EMOTION】/i,
       /【情绪】/i,
-      /(?:mood|emotion|atmosphere|mysterious|epic|warm|tense|sad|hopeful|神秘|敬畏|温暖|紧张|悲伤|希望|氛围)/i
+      /(?:emotion|mood|feeling|情绪|情感|氛围|基调)/i
+    ]
+  },
+
+  DEPTH: {
+    name: '纵深',
+    weight: 0.7,
+    blockMapping: [
+      '【DEPTH】',
+      '【纵深】',
+      '【景深】'
+    ],
+    patterns: [
+      /【DEPTH】/i,
+      /【纵深】/i,
+      /【景深】/i,
+      /(?:depth|depth of field|dof|纵深|景深|层次|前后景)/i
+    ]
+  },
+
+  ANGLE: {
+    name: '方位',
+    weight: 0.7,
+    blockMapping: [
+      '【ANGLE】',
+      '【方位】',
+      '【角度】',
+      '【机位】'
+    ],
+    patterns: [
+      /【ANGLE】/i,
+      /【方位】/i,
+      /【角度】/i,
+      /【机位】/i,
+      /(?:angle|position|机位|角度|方位|构图|平视|俯视|仰视)/i
     ]
   },
 

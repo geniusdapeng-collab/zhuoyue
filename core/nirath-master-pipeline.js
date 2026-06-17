@@ -71,9 +71,7 @@ const { generateAmbientSoundField } = require('../systems/ambient-sound-designer
 // ========== 渲染层模块(视频生成核心) ==========
 const { OrientPrimordialCoreV24 } = require('../../shanhaijing-render-engine/orient-primordial-core-v24.js');
 const { CameraMovementSystem } = require('../systems/camera-movement-system-v2.js');
-// 🔥 v6.2-fix: 引入v3镜头内时间轴生成器(恢复英雄之旅运镜复杂度)
-const { IntraShotTimelineGenerator, SHOT_SIZE_TRANSITIONS, LIGHTING_TRANSITIONS, SPEED_CURVES, TRANSITION_EFFECTS } = require('../systems/camera-movement-system-v3.js');
-// 🔥 v6.6.5-v4: 引入v4 LLM驱动个性化时间轴系统
+// v6.6.9.4-patch9: 移除v3镜头内时间轴生成器，统一使用v4 LLM驱动系统
 const { CameraMovementSystemV4 } = require('../systems/camera-movement-system-v4.js');
 const { NirathCharacterEnhancer, WorldSoulBinding } = require('../systems/nirath/nirath-character-enhancement.js');
 const audit = require('../systems/audit-logger'); // P1: 操作审计日志
@@ -228,6 +226,7 @@ const WORKSPACE = process.env.WORKSPACE_DIR || path.join(__dirname, '..');
 
 class NirathMasterPipeline {
   constructor(options = {}) {
+    this.options = options; // v6.6.9.4-patch10-fix: 保存options供后续读取
     this.mode = options.mode || 'nirath'; // 'generic' | 'nirath'
     this.projectConfig = options.projectConfig || {};
     this.useLLM = options.useLLM !== false; // v6.2-patch71-fix: 默认启用LLM
@@ -1085,6 +1084,10 @@ class NirathMasterPipeline {
                   }
 
                   cleanedPrompt = this.smartTrim(cleanedPrompt, PROMPT_LENGTH.HARD_MAX);
+
+                  // v6.6.9.4-patch14: 合并后强制转换为中文标准字段格式
+                  cleanedPrompt = this.toStandardPrompt(existingShot, cleanedPrompt);
+                  cleanedPrompt = this.ensureFinalPromptStructure(existingShot, cleanedPrompt);
 
                   existingShot.prompt = cleanedPrompt;
                   existingShot.length = cleanedPrompt.length;
@@ -3222,9 +3225,10 @@ ${isNirath
       const shot = {
         id: scene.id || `S${String(i + 1).padStart(2, '0')}`,
         scene: scene.scene || 'default',
-        // v6.5.29-fix: generic模式下保留原始narration,不要覆盖为dialogue
-        dialogue: scene.dialogue || '',
-        narration: scene.narration || scene.dialogue || '', // 优先使用narration,不存在才用dialogue兜底
+        // v6.6.9.4-patch13-fix: 全局禁用narration,只保留dialogue
+        // 如果scene有dialogue就用dialogue,如果scene只有narration则将narration内容合并到dialogue
+        dialogue: scene.dialogue || scene.narration || '',
+        // narration字段彻底移除,不再保留(全局禁用旁白/讲解词,仅保留台词)
         duration,
         type: scene.type || 'explanation',
         characters: scene.characters || [],
@@ -4081,8 +4085,10 @@ ${isNirath
     const isNirath = this.mode === 'nirath';
     const config = {
       // v6.6.9.4-fix: generic模式默认值改为中性，不再硬编码山海经
-      episodeTitle: input.projectName || input.title || (isNirath ? '山海经:异兽志' : '未命名视频'),
+      // v6.6.9.4-patch13-fix: 标题优先使用input.title（内容标题），其次才是projectName
+      episodeTitle: input.title || input.projectName || (isNirath ? '山海经:异兽志' : '未命名视频'),
       seriesTitle: input.seriesTitle || (isNirath ? '山海经:异兽志' : ''),
+      subTitle: input.topic || input.subTitle || '', // v6.6.9.4-patch13: 添加副标题字段
       episodeNumber: input.episodeNumber || input.episode || 'EP01',
       featuredBeastId: isNirath ? (input.beastId || input.core?.beastId || input.theme || '') : '',
       protagonistId: input.protagonistId || (isNirath ? 'xiaoG' : 'presenter'),
@@ -4109,7 +4115,12 @@ ${isNirath
 
     // v2.2-fix: 从input.characters提取portraits数据
     if (input.characters) {
-      for (const [charId, charData] of Object.entries(input.characters)) {
+      // v6.6.9.4-patch12-fix: 支持数组和对象两种格式的characters
+      const charEntries = Array.isArray(input.characters) 
+        ? input.characters.map((c, i) => [c.id || c.name || `char_${i}`, c])
+        : Object.entries(input.characters);
+      
+      for (const [charId, charData] of charEntries) {
         if (charData.portraits) {
           config.portraits[charId] = charData.portraits;
         }
@@ -4386,15 +4397,14 @@ ${isNirath
     }
   }
 
-  // ========== Stage 9: 运镜系统(Nirath v3 + 镜头内时间轴 + FPV导演决策)==========
+  // ========== Stage 9: 运镜系统(v4 LLM驱动个性化时间轴) ==========
   async stageCameraMovement(storyboard, fpvDecision) {
-    this.log('STAGE-9', `运镜系统${this.mode === 'nirath' ? '(Nirath v3 + 镜头内多段式时间轴 + FPV导演决策)' : '(v1)'}`);
+    this.log('STAGE-9', `运镜系统(v4 LLM驱动个性化时间轴)`);
 
     // v6.2-patch65: 重置一镜到底计数器(每轮预生产独立计数)
     this._oneShotCounter = { used: 0, max: 2 };
 
-    // 🔥 v6.2-fix: 初始化v3镜头内时间轴生成器
-    const timelineGenerator = new IntraShotTimelineGenerator();
+    // v6.6.9.4-patch9: 移除v3 timelineGenerator，统一使用v4
 
     // 场景类型→景别切换策略映射(英雄之旅运镜设计)
     // v6.2-patch107: 新增top-down和fpv特殊场景支持
@@ -4496,21 +4506,11 @@ ${isNirath
             movement.isFPV = true;
             movement.fpvScore = shot.fpvScore;
 
-            // 🔥 v6.2-fix: FPV镜头也加入v3时间轴(2-3段简化版)
-            const fpvTimeline = timelineGenerator.generateTimeline({
-              transitionType: 'chase_dynamic',
-              lightingType: 'energy_burst',
-              speedCurve: 'exploding',
-              duration: shot.duration || 5,
-              emotionPhase: 'climax',
-              sceneName
-            });
-            movement.timeline = fpvTimeline;
-
-            this.log('STAGE-9', `  ✅ FPV运镜+v3时间轴: ${shot.id} | ${fpvTimeline.segmentCount}段 | ${movement.description?.substring(0, 50)}...`);
+            // v6.6.9.4-patch9: FPV镜头使用v4时间轴，移除v3依赖
+            // v4时间轴已在上面生成，无需额外处理
           } catch (e) {
-            this.log('STAGE-9', `  ⚠️ FPV运镜生成失败: ${e.message} | 回退到普通运镜+v3时间轴`);
-            movement = this.generateV3CameraMovement(shot, timelineGenerator, sceneTypeToTransition, emotionToLighting, emotionToSpeedCurve);
+            this.log('STAGE-9', `  ⚠️ FPV运镜生成失败: ${e.message} | 回退到v4基础运镜`);
+            movement = await this._generateV4FallbackMovement(shot);
           }
         } else {
           // 通用模式:标准运镜
@@ -4565,8 +4565,8 @@ ${isNirath
               // 更新previousShot用于连续性检查
               previousShot = { timeline: v4Result.timeline };
             } else {
-              // v4未生成时间轴（Feature Toggle禁用），回退到v3
-              movement = this.generateV3CameraMovement(shot, timelineGenerator, sceneTypeToTransition, emotionToLighting, emotionToSpeedCurve);
+              // v6.6.9.4-patch9: v4未生成时间轴，使用v4基础回退
+              movement = await this._generateV4FallbackMovement(shot);
               previousShot = { timeline: movement.timeline };
             }
           } catch (e) {
@@ -4574,8 +4574,8 @@ ${isNirath
             throw new Error(`STAGE-9 v4运镜失败: ${e.message} | 镜头: ${shot.id} | 已触发重试机制但仍失败，终止预生产`);
           }
         } else {
-          // 回退到v3
-          movement = this.generateV3CameraMovement(shot, timelineGenerator, sceneTypeToTransition, emotionToLighting, emotionToSpeedCurve);
+          // v6.6.9.4-patch9: v3已移除，使用v4基础回退
+            movement = await this._generateV4FallbackMovement(shot);
           previousShot = { timeline: movement.timeline };
         }
       }
@@ -4595,108 +4595,41 @@ ${isNirath
 
   /**
    * 🔥 v6.2-fix: 生成v3完整运镜(多段式时间轴+转场+灯光+速度曲线)
+
+  /**
+   * v6.6.9.4-patch9: v4基础回退方法（替代v3）
    */
-  generateV3CameraMovement(shot, timelineGenerator, sceneTypeToTransition, emotionToLighting, emotionToSpeedCurve) {
+  async _generateV4FallbackMovement(shot) {
     const sceneName = (shot.scene || '').split('-')[0]?.trim() || shot.scene || 'default';
-    const phase = shot.emotionPhase ||
-                  (shot.type === 'opening' ? 'establishing' :
-                   shot.type === 'climax' ? 'climax' : 'rising');
-
-    // v6.2-patch107: top-down特殊场景处理
-    if (shot.shotType === 'top-down' || shot.type === 'top-down') {
-      this.log('STAGE-9', `  🎬 俯视运镜: ${shot.id} | 场景: ${sceneName} | 无Face Close-up`);
-      const timeline = timelineGenerator.generateTimeline({
-        transitionType: 'progressive_reveal',
-        lightingType: 'dawn_break',
-        speedCurve: 'slow_fast_slow',
-        duration: shot.duration || 5,
-        emotionPhase: phase,
-        sceneName
-      });
-
-      return {
-        description: `(俯视镜头)从正上方拍摄,展示全局布局。${sceneName}的棋盘/场景从空中俯瞰,人物作为小元素分布在画面中。无Face Close-up,以整体构图为主。`,
-        timeline,
-        v3Enabled: true,
-        transitionType: 'progressive_reveal',
-        lightingType: 'dawn_break',
-        speedCurve: 'slow_fast_slow',
-        shotType: 'top-down',
-        cameraAngle: 'top-down',
-        noFaceCloseUp: true
-      };
-    }
-
-    // 根据场景类型选择景别切换策略
-    const transitionType = sceneTypeToTransition[shot.type] || 'progressive_reveal';
-    // 根据情绪阶段选择灯光变化
-    const lightingType = emotionToLighting[phase] || 'dawn_break';
-    // 根据情绪阶段选择速度曲线
-    const speedCurve = emotionToSpeedCurve[phase] || 'slow_fast_slow';
-
-    // 生成v3完整时间轴
-    const timeline = timelineGenerator.generateTimeline({
-      transitionType,
-      lightingType,
-      speedCurve,
-      duration: shot.duration || 5,
-      emotionPhase: phase,
-      sceneName
-    });
-
-    // v6.2-patch66-fix: 防御性检查,防止无效timeline导致segments.map报错
-    if (!timeline || !timeline.segments) {
-      this.log('STAGE-9', `  ⚠️ 时间轴生成失败: ${shot.id} | transitionType=${transitionType} | speedCurve=${speedCurve} | 回退到基础运镜`);
-      return baseMovement;
-    }
-
-    // 同时调用v2系统生成基础运镜描述(向后兼容)
-    const baseMovement = this.modules.cameraMovement.generateNirathMovement(sceneName, phase, {
-      shotSize: shot.shotSize,
-      movement: shot.movement,
-      speed: shot.speed
-    });
-
-    // 合并:v3时间轴 + v2基础描述
-    const movement = {
-      ...baseMovement,
-      timeline,
-      v3Enabled: true,
-      transitionType,
-      lightingType,
-      speedCurve
+    const duration = shot.duration || 5;
+    const timeline = {
+      segments: [{
+        timeRange: [0, duration],
+        shotSize: 'medium',
+        cameraAngle: 'eye_level',
+        movement: 'static_hold',
+        speed: 'slow',
+        lighting: 'neutral',
+        description: '基础静态构图，稳定画面'
+      }],
+      segmentCount: 1,
+      transitionType: 'static',
+      lightingType: 'neutral',
+      speedCurve: 'constant'
     };
-
-    // 生成自然语言描述
-    const segDesc = timeline.segments.map(s =>
-      `${s.timeRange} ${s.shotSizeDesc} ${s.speed.description} ${s.movement}${s.transition ? '→' + (TRANSITION_EFFECTS[s.transition]?.name || s.transition) : ''}`
-    ).join(' | ');
-
-    // v6.2-patch97-fix: 一镜到底智能判断(基于transitionType和段内transition效果)
-    // 一镜到底要求无硬切/移焦:若时间轴内含多段切换效果,或transitionType为多段剪辑型,标记为多段运镜
-    const hasHardCuts = timeline.segments.some(s => s.transition && ['hard_cut','jump_cut','whip_pan','match_cut'].includes(s.transition));
-    const isMultiSegmentType = ['chase_dynamic','impact_shock','montage','parallel'].includes(transitionType);
-    const canUseOneShot = !hasHardCuts && !isMultiSegmentType && this._oneShotCounter.used < this._oneShotCounter.max;
-    if (canUseOneShot) this._oneShotCounter.used++;
-
-    const oneShotPrefix = canUseOneShot ? '(一镜到底!)' : '(多段运镜)';
-    movement.description = `${oneShotPrefix},镜头时间轴:${segDesc}。${baseMovement.description || ''}`;
-
-    // 🔥 v2.0: 创意指数指令注入(运镜风格、构图、镜头语言、时间操控)
-    const ciiInstructions = this._getCreativeIntensityInstructions('STAGE-9');
-    if (ciiInstructions) {
-      movement.description += `\n${ciiInstructions.trim()}`;
-    }
-
-    // v6.2-patch63-fix: 将timeline段数同步到shot对象,供Stage 11质量评分使用
-    shot._segments = timeline.segments;
-    shot._segmentCount = timeline.segmentCount;
-    shot._timeline = timeline;
-
-    this.log('STAGE-9', `  🎬 v3运镜: ${shot.id} | ${timeline.segmentCount}段 | ${transitionType} | ${lightingType} | ${speedCurve} | ${shot.duration || 5}秒`);
-
-    return movement;
+    return {
+      description: `基础运镜：${sceneName}场景，静态构图，稳定画面呈现`,
+      timeline,
+      v4Enabled: true,
+      v4Fallback: true,
+      shotSize: 'medium',
+      position: 'center',
+      movement: 'static_hold',
+      speed: 'slow',
+      timeRange: [0, duration]
+    };
   }
+
 
   // ========== Stage 10: 连续性检查 ==========
   async stageContinuity(storyboard) {
@@ -5630,6 +5563,12 @@ ${isNirath
         }
 
         this.log('STAGE-11', `  ✅ 新链路渲染: ${shot.id} | 10字段结构 | ${prompt.length}字符`);
+        
+        // v6.6.9.4-patch13-fix: 新链路也需要转换为标准字段格式
+        prompt = this.toStandardPrompt(shot, prompt);
+        prompt = this.ensureFinalPromptStructure(shot, prompt);
+        shot.prompt = prompt;
+        
         continue; // v6.6.9: 新链路成功，跳过后续增强处理
       }
 
@@ -7374,7 +7313,7 @@ ${isNirath
   toStandardPrompt(shot, prompt) {
     const safe = (v) => (typeof v === 'string' ? v.trim() : '');
 
-    const narration = safe(shot.narration || shot.dialogue);
+    const dialogue = safe(shot.dialogue); // v6.6.9.4-patch13: 只使用dialogue,禁用narration
     const scene = safe(
       typeof shot.scene === 'string'
         ? shot.scene
@@ -7388,7 +7327,6 @@ ${isNirath
       '';
 
     // v6.5.33-methodology: CAMERA字段增强 - 注入方法论镜头语言规范
-    // 基于《AI视频生成提示词工程方法论》2.5 CAMERA维度 + 6.1景别体系
     const enhancedCamera = this.enhanceCameraWithMethodology(cameraText, shot);
 
     const lightingText =
@@ -7440,10 +7378,10 @@ ${isNirath
       characterText = shot.characters.join(',');
     }
 
+    // v6.6.9.4-patch13: ACTION字段只保留动作描述,不再混入narration/dialogue
     const actionText =
       (prompt.match(/【动作】([^【]*)/) || [])[1] ||
-      (prompt.match(/【视觉】([^【]*)/) || [])[1] ||
-      narration ||
+      (prompt.match(/【动态】([^【]*)/) || [])[1] ||
       '自然动作';
 
     const moodMap = {
@@ -7458,27 +7396,54 @@ ${isNirath
     };
     const moodText = this.enhanceMoodWithMethodology(moodMap[shot.emotionPhase] || '自然氛围', shot);
 
-    // v6.5.33-methodology: 增强SCENE字段 - 空间五维描述法 + 纵深构建
+    // v6.5.33-methodology: 增强各字段
     const enhancedScene = this.enhanceSceneWithMethodology(scene, shot);
-
-    // v6.5.33-methodology: 增强ACTION字段 - 动作三层模型 + 物理动词词库
     const enhancedAction = this.enhanceActionWithMethodology(actionText, shot);
-
-    // v6.5.33-methodology: 增强CHARACTER字段 - 主体四维模型
     const enhancedCharacter = this.enhanceCharacterWithMethodology(characterText, shot);
 
+    // v6.6.9.4-patch13: 构建【人物介绍卡片】字段 - 从角色定妆照构建
+    let characterCard = '';
+    if (Array.isArray(shot.characters) && shot.characters.length > 0) {
+      const charRefs = [];
+      for (const charId of shot.characters) {
+        // 检查角色是否有定妆照
+        const charProfile = this.modules.characterManager?.loadCharacter?.(charId);
+        const portraits = charProfile?.generatedAssets?.portraits || charProfile?.v2Metadata?.portraitPaths || [];
+        if (portraits.length > 0) {
+          charRefs.push(`${charId}: ${portraits.slice(0, 4).join(', ')}`);
+        } else {
+          charRefs.push(`${charId}: 无定妆照`);
+        }
+      }
+      characterCard = charRefs.join(' | ');
+    }
+
+    // v6.6.9.4-patch14: 内容镜头15个标准字段(新增【情绪】【纵深】【方位】)
     const fields = [
-      `CHARACTER: ${enhancedCharacter || characterText || '人物出场,形象明确'}`,
-      `ACTION: ${enhancedAction || actionText}`,
-      `SCENE: ${enhancedScene || scene || '场景环境明确,空间关系清晰'}`,
-      `MOOD: ${moodText}`,
-      `CAMERA: ${enhancedCamera || cameraText || '35mm lens, eye level medium shot, steady tracking shot'}`,
-      `LIGHTING: ${lightingText || '自然光,明暗层次清晰'}`,
-      `NEGATIVE: ${negativeText || 'no text, no anime, no cartoon, no deformed hands, no extra fingers, no watermark'}`,
-      `AUDIO: ${audioText || '环境音自然,声画同步'}`,
-      `RENDER: ${renderText}`,
-      `DIRECTOR: ${directorText}`
+      `【视觉】${enhancedCharacter || characterText || '人物出场,形象明确'}`,
+      `【动态】${enhancedAction || actionText}`,
+      `【空间】${enhancedScene || scene || '场景环境明确,空间关系清晰'}`,
+      `【情绪】${moodText}`,
+      `【纵深】${shot.depthOfField || '景深自然,层次清晰'}`,
+      `【方位】${shot.cameraAngle || '平视角度,构图平衡'}`,
+      `【风格】${shot.style || (prompt.match(/【风格】([^【]*)/) || [])[1] || '纪录片风格,真实自然'}`,
+      `【镜头时间轴】${enhancedCamera || cameraText || '35mm lens, eye level medium shot, steady tracking shot'}`,
+      `【照明】${lightingText || '自然光,明暗层次清晰'}`,
+      `【负面约束】${negativeText || 'no text, no anime, no cartoon, no deformed hands, no extra fingers, no watermark'}`,
+      `【环境音效】${audioText || '环境音自然,声画同步'}`,
+      `【渲染】${renderText}`,
+      `【导演】${directorText}`
     ];
+
+    // v6.6.9.4-patch13: 添加台词字段(如果dialogue存在)
+    if (dialogue) {
+      fields.push(`【台词】"${dialogue}"`);
+    }
+
+    // v6.6.9.4-patch13: 添加人物介绍卡片字段(如果角色有定妆照)
+    if (characterCard) {
+      fields.push(`【人物介绍卡片】${characterCard}`);
+    }
 
     let result = fields.join(' | ');
 
@@ -7491,7 +7456,7 @@ ${isNirath
       }
     }
 
-    // v6.5.34-fix: 保留Nirath模式约束字段(风格锁/负面约束/角色约束/镜头时间轴/明亮约束)
+    // v6.5.34-fix: 保留Nirath模式约束字段
     if (this.mode === 'nirath') {
       const preserveBlocks = ['【风格锁】', '【负面约束】', '【角色约束】', '【镜头时间轴】', '【明亮约束】'];
       const preservedConstraints = [];
@@ -7506,7 +7471,6 @@ ${isNirath
         if (result.length + constraintsStr.length <= PROMPT_LENGTH.HARD_MAX) {
           result += constraintsStr;
         } else {
-          // 空间不足,截断result尾部以容纳约束
           const maxResultLen = PROMPT_LENGTH.HARD_MAX - constraintsStr.length;
           result = result.substring(0, maxResultLen).trim() + constraintsStr;
         }
@@ -7521,33 +7485,45 @@ ${isNirath
 
     const blocks = [];
 
-    if (!/CHARACTER:/i.test(result)) {
+    if (!/【视觉】/i.test(result)) {
       const chars = Array.isArray(shot.characters) ? shot.characters.join(',') : '人物';
-      blocks.push(`CHARACTER: ${chars}`);
+      blocks.push(`【视觉】${chars}`);
     }
 
-    if (!/ACTION:/i.test(result)) {
-      blocks.push(`ACTION: ${shot.narration || shot.dialogue || '自然动作'}`);
+    if (!/【动态】/i.test(result)) {
+      blocks.push(`【动态】${shot.dialogue || '自然动作'}`);
     }
 
-    if (!/SCENE:/i.test(result)) {
+    if (!/【空间】/i.test(result)) {
       const scene = typeof shot.scene === 'string' ? shot.scene : (shot.scene?.name || '场景环境');
-      blocks.push(`SCENE: ${scene}`);
+      blocks.push(`【空间】${scene}`);
     }
 
-    if (!/MOOD:/i.test(result)) {
-      blocks.push(`MOOD: ${shot.emotionPhase || '自然氛围'}`);
+    if (!/【情绪】/i.test(result)) {
+      blocks.push(`【情绪】${shot.emotionPhase || '自然氛围'}`);
     }
 
-    if (!/CAMERA:/i.test(result)) {
-      blocks.push(`CAMERA: ${shot.cameraMovement?.description || '中景平稳运镜'}`);
+    if (!/【纵深】/i.test(result)) {
+      blocks.push(`【纵深】${shot.depthOfField || '景深自然,层次清晰'}`);
     }
 
-    if (!/LIGHTING:/i.test(result)) {
-      blocks.push(`LIGHTING: ${shot.lighting?.keyLight || '自然光,明暗层次清晰'}`);
+    if (!/【方位】/i.test(result)) {
+      blocks.push(`【方位】${shot.cameraAngle || '平视角度,构图平衡'}`);
     }
 
-    if (!/AUDIO:/i.test(result) && /(?:伴随|动作产生|氛围弥漫|音乐线索|声画精准同步)/.test(result)) {
+    if (!/【风格】/i.test(result)) {
+      blocks.push(`【风格】${shot.emotionPhase || '自然氛围'}`);
+    }
+
+    if (!/【镜头时间轴】/i.test(result)) {
+      blocks.push(`【镜头时间轴】${shot.cameraMovement?.description || '中景平稳运镜'}`);
+    }
+
+    if (!/【照明】/i.test(result)) {
+      blocks.push(`【照明】${shot.lighting?.keyLight || '自然光,明暗层次清晰'}`);
+    }
+
+    if (!/【环境音效】/i.test(result) && /(?:伴随|动作产生|氛围弥漫|音乐线索|声画精准同步)/.test(result)) {
       const audioParts = [];
       const patterns = [
         /伴随[^,。|]*/gi,
@@ -7560,16 +7536,16 @@ ${isNirath
         audioParts.push(...(result.match(re) || []));
       }
       if (audioParts.length > 0) {
-        blocks.push(`AUDIO: ${audioParts.join(',')}`);
+        blocks.push(`【环境音效】 ${audioParts.join(',')}`);
       }
     }
 
-    if (!/RENDER:/i.test(result)) {
-      blocks.push(`RENDER: ${this.mode === 'nirath' ? '超写实数字渲染,影视级画面构图,体积光照明,空气透视感,皮肤与材质微距摄影级细节,写实风格,外星繁茂植被覆盖岩石地表,背景可见奇异生物活动。' : 'hyperrealistic cinematic quality, 35mm film grain, HDR, photorealistic with filmic treatment, 16:9 cinematic'}`);
+    if (!/【渲染】/i.test(result)) {
+      blocks.push(`【渲染】 ${this.mode === 'nirath' ? '超写实数字渲染,影视级画面构图,体积光照明,空气透视感,皮肤与材质微距摄影级细节,写实风格,外星繁茂植被覆盖岩石地表,背景可见奇异生物活动。' : 'hyperrealistic cinematic quality, 35mm film grain, HDR, photorealistic with filmic treatment, 16:9 cinematic'}`);
     }
 
-    if (!/DIRECTOR:/i.test(result)) {
-      blocks.push('DIRECTOR: 通用导演风格');
+    if (!/【导演】/i.test(result)) {
+      blocks.push('【导演】 通用导演风格');
     }
 
     if (blocks.length > 0) {
@@ -8659,9 +8635,9 @@ ${isNirath
         // Veo 3: 写实度关键词前置,中等长度,可同步音频描述
         transform: (p) => {
           // 写实度关键词前置
-          const renderMatch = p.match(/RENDER:\s*([^|]+)/i);
+          const renderMatch = p.match(/【渲染】\s*([^|]+)/i);
           const render = renderMatch ? renderMatch[1].trim() : 'hyperrealistic cinematic';
-          let rest = p.replace(/RENDER:\s*[^|]+\|?/i, '');
+          let rest = p.replace(/【渲染】\s*[^|]+\|?/i, '');
           rest = rest.replace(/\|/g, ', ').trim();
           return `${render}. ${rest}`;
         },

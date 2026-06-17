@@ -18,7 +18,7 @@ const path = require('path');
 // 当无LLM可用时，基于输入数据本地合成高质量prompt
 // 不阻塞pipeline，保持结构完整
 
-const LOCAL_MODE = true; // 优先使用本地模式，避免API依赖阻塞
+const LOCAL_MODE = false; // LLM驱动模式，启用真实推理
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -52,16 +52,19 @@ async function callLLM(prompt, options = {}) {
         )
       ]);
       
-      if (result && result.trim().length > 100) {
-        return result.trim();
+      // v6.6.9.4-patch13-fix: engine.generate 返回的是对象 {success, content, ...}
+      // 需要提取 content 字段，而非直接对对象调用 trim()
+      const text = result.content || result;
+      if (text && text.trim().length > 100) {
+        return text.trim();
       }
       
-      if (result && result.length < 50) {
-        console.log(`  ⚠️ LLM返回内容过短(${result.length}字符),重试 ${attempt}/${maxRetries}`);
+      if (text && text.length < 50) {
+        console.log(`  ⚠️ LLM返回内容过短(${text.length}字符),重试 ${attempt}/${maxRetries}`);
         continue;
       }
       
-      return result;
+      return text;
     } catch (e) {
       console.log(`  ⚠️ LLM调用失败 (attempt ${attempt}/${maxRetries}): ${e.message}`);
       if (attempt === maxRetries) throw e;
