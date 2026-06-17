@@ -74,7 +74,7 @@ const { generateAmbientSoundField } = require('./ambient-sound-designer.js');
 const { OrientPrimordialCoreV24 } = require('../shanhaijing-render-engine/orient-primordial-core-v24.js');
 const { CameraMovementSystem } = require('./camera-movement-system-v2.js');
 // 🔥 v6.2-fix: 引入v3镜头内时间轴生成器(恢复英雄之旅运镜复杂度)
-const { IntraShotTimelineGenerator, SHOT_SIZE_TRANSITIONS, LIGHTING_TRANSITIONS, SPEED_CURVES, TRANSITION_EFFECTS } = require('./camera-movement-system-v3.js');
+const { CameraMovementSystemV4 } = require('./camera-movement-system-v4.js');
 const { NirathCharacterEnhancer, WorldSoulBinding } = require('./nirath/nirath-character-enhancement.js');
 const audit = require('./audit-logger'); // P1: 操作审计日志
 const { UniversalStyleInjector } = require('./universal-style-injector.js');
@@ -4396,65 +4396,11 @@ ${isNirath
     // v6.2-patch65: 重置一镜到底计数器(每轮预生产独立计数)
     this._oneShotCounter = { used: 0, max: 2 };
 
-    // 🔥 v6.2-fix: 初始化v3镜头内时间轴生成器
-    const timelineGenerator = new IntraShotTimelineGenerator();
-
-    // 场景类型→景别切换策略映射(英雄之旅运镜设计)
-    // v6.2-patch107: 新增top-down和fpv特殊场景支持
-    const sceneTypeToTransition = {
-      opening: 'progressive_reveal',      // 开场:渐进式揭示
-      establishing: 'progressive_reveal', // 建立:渐进式揭示
-      discovery: 'impact_shock',          // 发现:震撼式冲击
-      reveal: 'impact_shock',             // 揭示:震撼式冲击
-      beastReveal: 'impact_shock',        // 异兽揭示:震撼式冲击
-      interaction: 'orbit_explore',       // 互动:环绕式探索
-      dialogue: 'dialogue_dance',         // 对话:对话式切换
-      climax: 'chase_dynamic',            // 高潮:追逐式动态
-      chase: 'chase_dynamic',             // 追逐:追逐式动态
-      closing: 'poetic_wander',           // 结尾:诗意式游走
-      environment: 'progressive_reveal',   // 环境:渐进式揭示
-      'top-down': 'progressive_reveal',    // 俯视:渐进式揭示(全局展示)
-      'fpv': 'chase_dynamic'               // FPV:追逐式动态
-    };
-
-    // 情绪阶段→灯光变化类型映射
-    const emotionToLighting = {
-      establishing: 'dawn_break',         // 建立:晨曦渐亮
-      rising: 'spotlight_drama',          // 上升:戏剧聚光
-      building: 'spotlight_drama',        // 蓄力:戏剧聚光
-      climax: 'energy_burst',             // 高潮:能量爆发
-      resolve: 'emotion_temperature',     // 解决:情绪冷暖
-      neutral: 'dawn_break'               // 中性:晨曦渐亮
-    };
-
-    // 情绪阶段→速度曲线映射
-    // v6.2-patch66-fix: 扩展映射覆盖所有情绪类型,防止激烈情绪使用慢速运镜
-    // 重要:只能使用 SPEED_CURVES 中已有的值 (slow_fast_slow/fast_slow_fast/building/exploding/breathing)
-    const emotionToSpeedCurve = {
-      establishing: 'slow_fast_slow',      // 建立:慢快慢
-      rising: 'building',                 // 上升:递进加速
-      building: 'building',               // 蓄力:递进加速
-      climax: 'exploding',               // 高潮:爆发式
-      resolve: 'breathing',               // 解决:呼吸式
-      neutral: 'slow_fast_slow',          // 中性:慢快慢
-      // 新增映射:覆盖所有情绪类型,只使用已有speedCurve
-      tension: 'exploding',               // 紧张:爆发式(快速)
-      conflict: 'fast_slow_fast',          // 冲突:快慢快(紧张)
-      awe: 'exploding',                   // 敬畏:爆发式(震撼)
-      fear: 'exploding',                  // 恐惧:爆发式(冲击)
-      anger: 'exploding',                 // 愤怒:爆发式(激烈)
-      curious: 'slow_fast_slow',          // 好奇:慢快慢(探索)
-      confusion: 'slow_fast_slow',         // 困惑:慢快慢(不安)
-      relief: 'breathing',                 // 释然:呼吸式(舒缓)
-      joy: 'fast_slow_fast',               // 喜悦:快慢快(活力)
-      sadness: 'breathing',               // 悲伤:呼吸式(缓慢)
-      surprise: 'exploding',              // 惊讶:爆发式(冲击)
-      trust: 'slow_fast_slow',             // 信任:慢快慢(稳定)
-      anticipation: 'building',           // 期待:递进加速(累积)
-      disgust: 'exploding',              // 厌恶:爆发式(强烈)
-    };
+    // 🔥 v4.0: 初始化v4镜头内时间轴生成器
+    const cameraMovementV4 = new CameraMovementSystemV4();
 
     const movements = [];
+    let previousShot = null; // v4.0: 用于镜头间连续性
     for (const shot of storyboard.shots) {
       let movement;
 
