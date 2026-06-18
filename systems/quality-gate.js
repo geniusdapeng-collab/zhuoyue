@@ -16,7 +16,12 @@ class QualityGate {
     const issues = [];
     const blockers = [];
 
-    const shots = result?.stages?.output?.prompts || [];
+    // v6.6.9.4-patch19: 兼容 meta+shots 新格式和旧格式
+    const shots = 
+      result?.stages?.output?.shots || 
+      result?.stages?.output?.prompts || 
+      result?.stages?.output?._legacy?.prompts || 
+      [];
     const errors = result?.errors || [];
 
     // 1. Prompt质量

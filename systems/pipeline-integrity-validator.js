@@ -358,10 +358,21 @@ Prompt: ${item.prompt?.slice(0, 300) || '空'}
       script.scenes.forEach((scene, idx) => {
         // v6.5.34-fix: narration全局禁用，检查dialogue替代
         const textContent = scene.narration || scene.dialogue;
+        
+        // v6.6.9.4-patch19: 允许 opening/hook/intro 类型的场景无台词（科普视频开场/过渡）
+        const sceneType = scene.type || scene.sceneType || '';
+        const isOpeningLike = sceneType === 'opening' || sceneType === 'hook' || sceneType === 'intro' || sceneType === 'transition';
+        
         if (!textContent || textContent.trim() === '') {
-          check.passed = false;
-          check.details.push(`场景${idx}: narration/dialogue为空`);
-          this.errors.push(`STAGE-5: 场景${idx}缺少narration/dialogue`);
+          // 仅对非开场类型的场景要求必须有台词
+          if (!isOpeningLike) {
+            check.passed = false;
+            check.details.push(`场景${idx}: narration/dialogue为空`);
+            this.errors.push(`STAGE-5: 场景${idx}缺少narration/dialogue`);
+          } else {
+            // 开场类型场景，记录为信息而非错误
+            check.details.push(`场景${idx}(${sceneType}): 无台词（允许）`);
+          }
         }
         if (!scene.mouthAction || scene.mouthAction.trim() === '') {
           check.passed = false;

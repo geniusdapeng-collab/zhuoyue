@@ -2903,7 +2903,14 @@ ${isNirath
       }
     }
     
-    return cleaned.trim();
+    cleaned = cleaned.trim();
+    
+    // v6.6.9.4-patch19: 底线保护 - 如果清洗后为空，保留原台词（避免清空有效内容）
+    if (!cleaned || cleaned.length === 0) {
+      return dialogue.trim();
+    }
+    
+    return cleaned;
   }
 
   // ========== Stage 6: 时长分配(集成ShotDurationAllocatorV2 + DurationCalculator双保险 + P1修复) ==========
