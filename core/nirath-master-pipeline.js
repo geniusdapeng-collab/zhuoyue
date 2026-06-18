@@ -7089,86 +7089,158 @@ ${isNirath
 
   // ========== Stage 16: 最终输出(基础版) ==========
   async stageFinalOutput(stages) {
-    this.log('STAGE-16', '最终输出组装');
+    this.log('STAGE-16', '最终输出组装(meta + shots)');
 
-    // ==== P0关键修复:链路完整性反向验证 ====
+    // ==== 链路完整性验证 ====
     this.log('STAGE-16.5', '链路输出完整性反向验证(PipelineIntegrityValidator)');
     const validator = new PipelineIntegrityValidator({ mode: this.mode });
     const integrityResult = await validator.validatePipeline(stages);
 
     if (!integrityResult.valid) {
-      this.log('STAGE-16.5', `⛔ 链路验证失败!${integrityResult.summary.errorCount}个错误,${integrityResult.summary.warningCount}个警告`, 'error');
-
-      // 输出具体失败模块
+      this.log('STAGE-16.5', `⛔ 链路验证失败! ${integrityResult.summary.errorCount}个错误, ${integrityResult.summary.warningCount}个警告`, 'error');
       const failedChecks = integrityResult.checks.filter(c => !c.passed);
       for (const check of failedChecks) {
         this.log('STAGE-16.5', `  ❌ ${check.stage}: ${check.name}`, 'error');
-        for (const detail of check.details) {
+        for (const detail of (check.details || [])) {
           this.log('STAGE-16.5', `      → ${detail}`, 'error');
         }
       }
-
-      // 记录到错误列表
       this.errors.push({
         stage: 'STAGE-16.5',
         message: `链路完整性验证失败: ${integrityResult.summary.errorCount}个错误`,
         details: integrityResult.errors
       });
-
     } else {
       this.log('STAGE-16.5', `✅ 链路完整性验证通过 | 全部${integrityResult.summary.totalChecks}项检查通过`);
     }
 
-    // 将验证结果附加到输出
     stages.integrityValidation = integrityResult;
 
+    const renderShots = Array.isArray(stages.style)
+      ? stages.style
+      : Array.isArray(stages.render)
+      ? stages.render
+      : [];
+
+    const meta = {
+      title: stages.prd?.meta?.title || stages.prd?.title || stages.script?.title || '未命名',
+      worldview: this.mode || 'generic',
+      totalDuration:
+        stages.storyboard?.totalDuration ||
+        (stages.storyboard?.shots || []).reduce((sum, s) => sum + (s.duration || 0), 0) ||
+        stages.duration?.totalDuration ||
+        60,
+      openingDuration: stages.opening?.duration || 0,
+      fps: 24,
+      resolution: '1920x1080',
+      styleNotes:
+        stages.prd?.style?.description ||
+        stages.prd?.style ||
+        '',
+      generatedAt: new Date().toISOString(),
+      version: 'v6.6.9.4-patch17'
+    };
+
+    const shots = renderShots.map((shot, index) => ({
+      shotId: shot.shotId || shot.id || `S${String(index + 1).padStart(2, '0')}`,
+      duration: shot.duration || 0,
+      scene: shot.scene || '',
+      mood: shot.emotionPhase || shot.mood || '',
+      camera: shot.cameraMovement || shot.camera || null,
+      cameraString:
+        shot.cameraString ||
+        shot.cameraMovement?.description ||
+        shot.cameraMovement?.movement ||
+        '',
+      lighting: shot.lighting || null,
+      lightingString:
+        shot.lightingString ||
+        shot.lighting?.description ||
+        shot.lighting?.keyLight ||
+        '',
+      characterRef: shot.characterRef || '',
+      character: shot.character || '',
+      action:
+        shot.action ||
+        shot.dialogue ||
+        shot.narration ||
+        '',
+      dialogue: shot.dialogue || '',
+      timeline: shot.timeline || shot.cameraMovement?.timeline || null,
+      timelineString:
+        shot.timelineString ||
+        (typeof shot.timeline === 'string' ? shot.timeline : '') ||
+        '',
+      backgroundSound: shot.backgroundSound || null,
+      backgroundSoundString:
+        shot.backgroundSoundString ||
+        (typeof shot.backgroundSound === 'string' ? shot.backgroundSound : '') ||
+        '',
+      audioLayer: shot.audioLayer || null,
+      audioLayerString:
+        shot.audioLayerString ||
+        '',
+      titleOverlay: shot.title || shot.titleOverlay || null,
+      titleOverlayString:
+        shot.titleOverlayString ||
+        '',
+      prompt: shot.prompt || '',
+      promptCharCount: shot.promptCharCount || shot.length || (shot.prompt ? shot.prompt.length : 0),
+      mouthAction: shot.mouthAction || '',
+      physicsLayer: shot.physicsLayer || null,
+      colorScience: shot.colorScience || null,
+      negativePrompt: shot.negativePrompt || '',
+      renderStyle: shot.renderStyle || null,
+      directorStyle: shot.directorStyle || null,
+      priorities: shot.priorities || null,
+      qualityScore: shot.qualityScore || null,
+      referenceImages: shot.referenceImages || [],
+      isOpening: !!shot.isOpening
+    }));
+
     const output = {
-      prd: stages.prd,
-      characters: stages.characters,
-      script: stages.script,
-      storyboard: stages.storyboard,
-      cameraMovements: stages.camera,
-      prompts: stages.style,
-      postProduction: stages.postProduction,
-      fallbackSummary: this.fallbackMonitor.summarize(),
-      validation: {
-        alignment: stages.alignment,
-        schema: stages.schema,
-        storyboard: stages.storyboardValidation,
-        compliance: stages.compliance,
-        preRender: stages.preRender,
-        integrity: integrityResult  // 新增
+      meta,
+      shots,
+      _legacy: {
+        prd: stages.prd,
+        characters: stages.characters,
+        script: stages.script,
+        storyboard: stages.storyboard,
+        cameraMovements: stages.camera,
+        prompts: renderShots,
+        postProduction: stages.postProduction,
+        fallbackSummary: this.fallbackMonitor?.summarize ? this.fallbackMonitor.summarize() : null,
+        validation: {
+          alignment: stages.alignment,
+          schema: stages.schema,
+          storyboard: stages.storyboardValidation,
+          compliance: stages.compliance,
+          preRender: stages.preRender,
+          integrity: integrityResult
+        }
       }
     };
 
-    if (this.fallbackMonitor.hasCriticalFallback()) {
-      this.log('STAGE-16', '⚠️ 检测到关键阶段 fallback，本次结果不应视为完全真实成功');
-    }
+    this.log('STAGE-16', `✅ 最终输出 | shots: ${shots.length} | integrity: ${integrityResult.valid ? '通过' : '未通过'}`);
 
-    this.log('STAGE-16', `✅ 最终输出 | 镜头数: ${output.prompts?.length || 0} | 完整性验证: ${integrityResult.valid ? '通过' : '未通过'}`);
-
-    // v6.5.64-P3: 保存输出到文件
     try {
       const fss = require('fs');
       const path = require('path');
       const outputDir = this.outputDir || path.join(process.cwd(), 'output');
-      
-      // 确保输出目录存在
+
       if (!fss.existsSync(outputDir)) {
         fss.mkdirSync(outputDir, { recursive: true });
       }
-      
-      // 保存完整结果 JSON
+
       const resultPath = path.join(outputDir, 'preproduction-result.json');
       fss.writeFileSync(resultPath, JSON.stringify(output, null, 2), 'utf-8');
       this.log('STAGE-16', `💾 结果已保存: ${resultPath}`);
-      
-      // 保存 Markdown 报告
+
       const reportPath = path.join(outputDir, 'preproduction-report.md');
       const report = this._generateMarkdownReport(output, integrityResult);
       fss.writeFileSync(reportPath, report, 'utf-8');
       this.log('STAGE-16', `📝 报告已保存: ${reportPath}`);
-      
+
       output.outputDir = outputDir;
       output.resultPath = resultPath;
       output.reportPath = reportPath;
