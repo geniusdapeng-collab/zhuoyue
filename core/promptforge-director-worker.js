@@ -171,7 +171,7 @@ async function callLLM(prompt, options = {}) {
   const {
     maxTokens = 8192,
     temperature = 1,
-    timeoutMs = 600000,
+    timeoutMs = 180000, // v6.6.9.4-patch14-fix: 缩短默认超时从600000到180000(3分钟)
     maxRetries = 3,
     stageName = 'unknown'
   } = options;
@@ -456,7 +456,20 @@ async function main() {
     process.exit(1);
   }
 
-  log(`🚀 Worker启动 | input=${inputFile} | output=${outputFile}`);
+  // v6.6.9.4-patch14-fix: Worker全局超时保护，防止LLM API阻塞导致进程永远挂起
+  const WORKER_TIMEOUT_MS = 900000; // 15分钟
+  const workerTimer = setTimeout(() => {
+    logError(`⏱️ Worker全局超时(${WORKER_TIMEOUT_MS}ms)，强制退出`);
+    safeWriteJson(outputFile, {
+      success: false,
+      error: `Worker全局超时(${WORKER_TIMEOUT_MS}ms)，LLM API阻塞或处理过久`,
+      shots: [],
+      qualityReport: { overallPassed: false, overallScore: 0, fallbackCount: 0, shotDetails: [] }
+    });
+    process.exit(1);
+  }, WORKER_TIMEOUT_MS);
+
+  log(`🚀 Worker启动 | input=${inputFile} | output=${outputFile} | 全局超时=${WORKER_TIMEOUT_MS}ms`);
 
   try {
     const input = safeReadJson(inputFile);
@@ -527,6 +540,7 @@ async function main() {
 
     safeWriteJson(outputFile, output);
     log(`✅ Worker完成 | shots=${outputShots.length} | fallbackCount=${fallbackCount} | output=${outputFile}`);
+    clearTimeout(workerTimer); // v6.6.9.4-patch14-fix: 正常完成时清理全局超时
     process.exit(0);
   } catch (err) {
     logError(`💥 Worker失败: ${err.message}`);

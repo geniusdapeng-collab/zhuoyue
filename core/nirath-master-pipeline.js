@@ -1005,6 +1005,23 @@ class NirathMasterPipeline {
           titlePlan: this.titlePlan || {}
         };
 
+        // v6.6.9.4-patch14-fix: 清理cameraMovement嵌套，补上dialogue字段供PromptForge使用
+        function cleanCameraMovement(cm) {
+          if (!cm || typeof cm !== 'object') return cm;
+          // 展平 timeline.timeline 双重嵌套
+          if (cm.timeline && typeof cm.timeline === 'object' && cm.timeline.timeline) {
+            return {
+              ...cm,
+              timeline: {
+                ...cm.timeline.timeline,
+                strategy: cm.timeline.strategy || cm.timeline.timeline.strategy,
+                reasoning: cm.timeline.reasoning || cm.timeline.timeline.reasoning
+              }
+            };
+          }
+          return cm;
+        }
+
         const rawReport = {
           shots: originalRender.map(r => ({
             id: r.id || r.shotId,
@@ -1013,7 +1030,8 @@ class NirathMasterPipeline {
             emotionPhase: r.emotionPhase,
             duration: r.duration,
             narration: r.narration,
-            cameraMovement: r.cameraMovement
+            dialogue: r.dialogue || '', // v6.6.9.4-patch14-fix: 补上dialogue字段
+            cameraMovement: cleanCameraMovement(r.cameraMovement) // v6.6.9.4-patch14-fix: 展平嵌套
           }))
         };
 
