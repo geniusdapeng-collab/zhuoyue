@@ -359,15 +359,21 @@ class UserRequirementParser {
     const prompt = this._buildLLMPrompt(userInput, ruleResult);
     
     try {
-      const response = await this.llmEngine.complete({
+      const response = await this.llmEngine.generate({
         prompt: prompt,
         maxTokens: 2000,
         temperature: 0.3
       });
 
+      // v6.6.9.4-patch20: 适配 LLMEngine.generate 返回对象格式
+      const responseText = response.success ? (response.content || '') : '';
+      if (!responseText) {
+        throw new Error(response.error || 'LLM返回空内容');
+      }
+
       // 解析LLM输出（期望JSON格式）
-      const jsonMatch = response.match(/```json\n?([\s\S]*?)\n?```/) || 
-                        response.match(/\{[\s\S]*\}/);
+      const jsonMatch = responseText.match(/```json\n?([\s\S]*?)\n?```/) || 
+                        responseText.match(/\{[\s\S]*\}/);
       
       if (jsonMatch) {
         return JSON.parse(jsonMatch[1] || jsonMatch[0]);

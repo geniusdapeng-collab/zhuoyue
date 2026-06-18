@@ -60,7 +60,14 @@ const {
 const { FallbackMonitor } = require('../systems/fallback-monitor');
 const { normalizeRenderShots } = require('../systems/render-shot-normalizer');
 
-// ========== 新增:镜头内Prompt增强器(v6.0-patch23融入) ==========
+// v6.6.9.4-patch21: 外部专家方案 - 角色/定妆照收口器
+const {
+  normalizeCharacterId,
+  safeTrimStructuredPrompt: safeTrimStructuredPromptUtil,
+  buildReferenceImagesForShot,
+  buildCharacterCardText
+} = require('../systems/prompt-reference-fix');
+
 const { buildAudioDescription, injectAudioDescription } = require('../systems/intra-shot-prompt-enhancer.js');
 const { CalibrationEngine, PRD_TEMPLATE } = require('../../shanhaijing-render-engine/story-prd-template-v21.js');
 const { RequirementContract, AlignmentGate } = require('../../seedance-director/scripts/requirement-alignment-gate.js');
@@ -2310,7 +2317,10 @@ class NirathMasterPipeline {
     if (result.stages.opening) result.stages.opening = null;
     if (result.stages.alignment) result.stages.alignment = null;
     if (result.stages.schema) result.stages.schema = null;
-    if (result.stages.characters) result.stages.characters = null;
+    // v6.6.9.4-patch21: 保留 characters 到 Stage-16 后释放(外部专家方案 - 角色/定妆照收口器)
+    // 根因: Stage-12~16 仍需访问角色数据提取定妆照和构建人物卡片
+    // if (result.stages.characters) result.stages.characters = null;
+
 
     // 强制GC确保释放生效
     if (global.gc) {
@@ -5487,6 +5497,12 @@ ${isNirath
         // 🔥 v6.1-fix: 将生成的prompt赋值给shot,供后续enhanceShotPrompt使用
         shot.prompt = prompt;
 
+        // v6.6.9.4-patch21: 注入定妆照(外部专家方案 - 角色/定妆照收口器)
+        shot.referenceImages = buildReferenceImagesForShot(shot, {characters: stages.characters || {}});
+        if (shot.referenceImages.length > 0) {
+          this.log("STAGE-11", `  📸 定妆照注入: ${shot.id} | ${shot.referenceImages.length}张`);
+        }
+
         // 🔥 v2.0: 创意指数指令注入(灯光、色彩、特效、质感、氛围)
         shot.prompt = this._injectCreativeIntensityToPrompt(shot.prompt, 'STAGE-11', shot.id);
 
@@ -5496,6 +5512,12 @@ ${isNirath
           if (boostResult.enhanced) {
             prompt = boostResult.result.prompt;
             shot.prompt = prompt;
+
+        // v6.6.9.4-patch21: 注入定妆照(外部专家方案 - 角色/定妆照收口器)
+        shot.referenceImages = buildReferenceImagesForShot(shot, {characters: stages.characters || {}});
+        if (shot.referenceImages.length > 0) {
+          this.log("STAGE-11", `  📸 定妆照注入: ${shot.id} | ${shot.referenceImages.length}张`);
+        }
             this.log('STAGE-11', `  🎭 情绪增强: ${shot.id} | 注入${boostResult.injections}项 | 情绪密度:${boostResult.emotionDensity?.toFixed(2)}`);
           }
         }
@@ -5526,6 +5548,12 @@ ${isNirath
         if (narrativeArc && !prompt.includes('【叙事弧线')) {
           prompt = narrativeArc + narrativePurpose + '\n' + prompt;
           shot.prompt = prompt;
+
+        // v6.6.9.4-patch21: 注入定妆照(外部专家方案 - 角色/定妆照收口器)
+        shot.referenceImages = buildReferenceImagesForShot(shot, {characters: stages.characters || {}});
+        if (shot.referenceImages.length > 0) {
+          this.log("STAGE-11", `  📸 定妆照注入: ${shot.id} | ${shot.referenceImages.length}张`);
+        }
           this.log('STAGE-11', `  🎭 叙事弧线注入: ${shot.id} | ${shot.shotType} → ${narrativeArc.substring(0, 30)}...${narrativePurpose ? ' | 含叙事目的' : ''}`);
         }
 
@@ -5636,6 +5664,12 @@ ${isNirath
         // 🔥 v6.1-fix: 将生成的prompt赋值给shot
         shot.prompt = prompt;
 
+        // v6.6.9.4-patch21: 注入定妆照(外部专家方案 - 角色/定妆照收口器)
+        shot.referenceImages = buildReferenceImagesForShot(shot, {characters: stages.characters || {}});
+        if (shot.referenceImages.length > 0) {
+          this.log("STAGE-11", `  📸 定妆照注入: ${shot.id} | ${shot.referenceImages.length}张`);
+        }
+
         // 🔥 v2.0: 创意指数指令注入(灯光、色彩、特效、质感、氛围)
         shot.prompt = this._injectCreativeIntensityToPrompt(shot.prompt, 'STAGE-11', shot.id);
 
@@ -5679,6 +5713,12 @@ ${isNirath
       if (gotoFinalSubmit && newChainResult) {
         shot.prompt = prompt;
 
+        // v6.6.9.4-patch21: 注入定妆照(外部专家方案 - 角色/定妆照收口器)
+        shot.referenceImages = buildReferenceImagesForShot(shot, {characters: stages.characters || {}});
+        if (shot.referenceImages.length > 0) {
+          this.log("STAGE-11", `  📸 定妆照注入: ${shot.id} | ${shot.referenceImages.length}张`);
+        }
+
         // 🔥 v2.0: 创意指数指令注入(灯光、色彩、特效、质感、氛围)
         shot.prompt = this._injectCreativeIntensityToPrompt(shot.prompt, 'STAGE-11', shot.id);
 
@@ -5688,6 +5728,12 @@ ${isNirath
         prompt = safeStructuredTrim(prompt, PROMPT_LENGTH.HARD_MAX);
         prompt = this.safeTrimStructuredPrompt(prompt, PROMPT_LENGTH.HARD_MAX);
         shot.prompt = prompt;
+
+        // v6.6.9.4-patch21: 注入定妆照(外部专家方案 - 角色/定妆照收口器)
+        shot.referenceImages = buildReferenceImagesForShot(shot, {characters: stages.characters || {}});
+        if (shot.referenceImages.length > 0) {
+          this.log("STAGE-11", `  📸 定妆照注入: ${shot.id} | ${shot.referenceImages.length}张`);
+        }
 
         // v6.5.44-fix: 新链路结果必须加入 render 数组,否则后续阶段丢失镜头
         // v6.5.58-fix: 构建标准输出字段
@@ -5717,7 +5763,7 @@ ${isNirath
             type: shot.type || 'generic',
             scene: shot.scene || '',
             prompt,
-            referenceImages: [],
+            referenceImages: shot.referenceImages || [],
             duration: shot.duration,
             length: prompt.length,
             mouthAction: shot.mouthAction,
@@ -5775,6 +5821,10 @@ ${isNirath
           existingPrompt.backgroundSound = bgSound;
           existingPrompt.dialogue = shot.dialogue || existingPrompt.dialogue || '';
           existingPrompt.narration = shot.narration || existingPrompt.narration || '';
+          // v6.6.9.4-patch21: 同步更新 referenceImages(外部专家方案 - 角色/定妆照收口器)
+          if (shot.referenceImages && shot.referenceImages.length > 0) {
+            existingPrompt.referenceImages = shot.referenceImages;
+          }
         }
 
         this.log('STAGE-11', `  ✅ 新链路渲染: ${shot.id} | 10字段结构 | ${prompt.length}字符`);
@@ -5783,6 +5833,12 @@ ${isNirath
         prompt = this.toStandardPrompt(shot, prompt);
         prompt = this.ensureFinalPromptStructure(shot, prompt);
         shot.prompt = prompt;
+
+        // v6.6.9.4-patch21: 注入定妆照(外部专家方案 - 角色/定妆照收口器)
+        shot.referenceImages = buildReferenceImagesForShot(shot, {characters: stages.characters || {}});
+        if (shot.referenceImages.length > 0) {
+          this.log("STAGE-11", `  📸 定妆照注入: ${shot.id} | ${shot.referenceImages.length}张`);
+        }
         
         continue; // v6.6.9: 新链路成功，跳过后续增强处理
       }
@@ -5791,6 +5847,12 @@ ${isNirath
       // 根因:shot.prompt可能在之前被覆盖,导致enhanceShotPrompt重复增强
       if (prompt.includes('【镜头时间轴】') && !shot.prompt.includes('【镜头时间轴】')) {
         shot.prompt = prompt;
+
+        // v6.6.9.4-patch21: 注入定妆照(外部专家方案 - 角色/定妆照收口器)
+        shot.referenceImages = buildReferenceImagesForShot(shot, {characters: stages.characters || {}});
+        if (shot.referenceImages.length > 0) {
+          this.log("STAGE-11", `  📸 定妆照注入: ${shot.id} | ${shot.referenceImages.length}张`);
+        }
         this.log('STAGE-11', `  🔥 修复shot.prompt: ${shot.id} | 重新注入镜头时间轴`);
       }
 
@@ -5954,6 +6016,12 @@ ${isNirath
                 }
 
                 shot.prompt = prompt;
+
+        // v6.6.9.4-patch21: 注入定妆照(外部专家方案 - 角色/定妆照收口器)
+        shot.referenceImages = buildReferenceImagesForShot(shot, {characters: stages.characters || {}});
+        if (shot.referenceImages.length > 0) {
+          this.log("STAGE-11", `  📸 定妆照注入: ${shot.id} | ${shot.referenceImages.length}张`);
+        }
                 this.log('STAGE-11', `  🎨 布景增强: ${shot.id} | ${designResult.compressionLevel} | 环境+${envText.length}字符 | 合并后${prompt.length}字符`);
               } // end if (hasExistingEnv) else
             } // end if (envText)
@@ -6212,6 +6280,12 @@ ${isNirath
 
           prompt = motionEnhanced;
           shot.prompt = prompt;
+
+        // v6.6.9.4-patch21: 注入定妆照(外部专家方案 - 角色/定妆照收口器)
+        shot.referenceImages = buildReferenceImagesForShot(shot, {characters: stages.characters || {}});
+        if (shot.referenceImages.length > 0) {
+          this.log("STAGE-11", `  📸 定妆照注入: ${shot.id} | ${shot.referenceImages.length}张`);
+        }
 
           if (motionLog.length > 0) {
             this.log('STAGE-11', `  🎭 动作增强: ${shot.id} | ${motionLog.join(' | ')}`);
@@ -6566,6 +6640,12 @@ ${isNirath
       prompt = this.safeTrimStructuredPrompt(prompt, PROMPT_LENGTH.HARD_MAX);
 
       shot.prompt = prompt;
+
+        // v6.6.9.4-patch21: 注入定妆照(外部专家方案 - 角色/定妆照收口器)
+        shot.referenceImages = buildReferenceImagesForShot(shot, {characters: stages.characters || {}});
+        if (shot.referenceImages.length > 0) {
+          this.log("STAGE-11", `  📸 定妆照注入: ${shot.id} | ${shot.referenceImages.length}张`);
+        }
       shot.length = prompt.length;
       shot.utilization = Math.round(prompt.length / PROMPT_LENGTH.HARD_MAX * 100);
       shot.utilizationStatus =
@@ -8055,23 +8135,42 @@ ${isNirath
 
   /**
    * 安全裁剪结构化Prompt，防止截断【块标记】导致 Stage-12 解析失败
-   * v6.6.9.4-patch17: 外部专家方案 - P1 修复
+   * v6.6.9.4-patch21: 外部专家方案 - 结构安全裁剪收口器
+   * 增强版：保护【】块、引号、跨行标记
    */
   safeTrimStructuredPrompt(prompt, maxLength) {
     if (!prompt || prompt.length <= maxLength) return prompt;
 
     let trimmed = prompt.slice(0, maxLength);
 
+    // P1: 保护【】块标记 - 如果最后一个块被截断，回退到该块之前
     const lastOpen = trimmed.lastIndexOf('【');
     const lastClose = trimmed.lastIndexOf('】');
-
-    // 如果最后一个块被截断，回退到该块之前
     if (lastOpen > lastClose) {
       trimmed = trimmed.slice(0, lastOpen);
     }
 
-    // 清理尾部残缺分隔符
+    // P2: 保护引号对 - 避免截断在引号中间
+    const lastQuote = trimmed.lastIndexOf('"');
+    const quoteCount = (trimmed.match(/"/g) || []).length;
+    if (lastQuote > 0 && quoteCount % 2 !== 0) {
+      // 奇数个引号，最后一个引号未闭合，回退到它之前
+      trimmed = trimmed.slice(0, lastQuote);
+    }
+
+    // P3: 保护跨行标记 - 避免截断在行首标记处
+    const lineMarkers = ['【', '◆', '▸', '●', '■'];
+    for (const marker of lineMarkers) {
+      if (trimmed.endsWith(marker)) {
+        trimmed = trimmed.slice(0, -1);
+      }
+    }
+
+    // P4: 清理尾部残缺分隔符
     trimmed = trimmed.replace(/\s*\|\s*$/, '').trim();
+
+    // P5: 确保不以特殊字符结尾
+    trimmed = trimmed.replace(/[,;:|\-\\\/\s]+$/, '').trim();
 
     return trimmed;
   }

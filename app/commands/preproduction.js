@@ -28,8 +28,8 @@ async function run(args = {}) {
     mdPath: result.mdPath
   });
 
-  // v6.5.0-fix8: 强制退出进程，避免事件循环残留导致进程挂起
-  process.exit(0);
+  // v6.6.9.4-patch21: 温和退出，给异步操作完成时间(外部专家方案 - 子进程活性收口器)
+  setTimeout(() => process.exit(0), 2000);
 
   return result;
 }

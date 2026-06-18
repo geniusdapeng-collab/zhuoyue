@@ -30,9 +30,11 @@ function generateGenericOpening(config) {
   let portraitRef = '';
   
   // 从portraits中提取主讲人的定妆照路径
-  const presenterPortraits = portraits[presenterId] || portraits[presenterName] || [];
-  if (presenterPortraits && presenterPortraits.length > 0) {
-    portraitPaths = presenterPortraits.slice(0, 4); // 最多4张
+  // v6.6.9.4-patch21: 修复 portraits 为对象格式时的提取逻辑
+  const presenterPortraits = portraits[presenterId] || portraits[presenterName] || {};
+  const portraitEntries = Object.entries(presenterPortraits).filter(([k, v]) => v && typeof v === 'string');
+  if (portraitEntries.length > 0) {
+    portraitPaths = portraitEntries.slice(0, 4).map(([k, v]) => v); // 最多4张
     portraitRef = ' @image1'; // Seedance 2.0 角色引用格式
   }
 
@@ -73,6 +75,8 @@ function generateGenericOpening(config) {
     characters: { protagonist: presenter, beast: null },
     portraits,
     portraitPaths,
+    // v6.6.9.4-patch21: 添加 referenceImages 字段(外部专家方案 - 角色/定妆照收口器)
+    referenceImages: portraitPaths.map(p => typeof p === 'string' && p.startsWith('image://') ? p : `image://${p}`),
     cameraPlan: [act1.cameraPlan, act2.cameraPlan, act3.cameraPlan],
     complianceCheck: { allChecksPass: true },
     truncationApplied: false

@@ -465,6 +465,11 @@ async function main() {
   }, WORKER_TIMEOUT_MS);
   workerTimer.unref?.();
 
+  // v6.6.9.4-patch21: 心跳机制 - 定期输出进度，防止父进程误判卡死
+  const heartbeatInterval = setInterval(() => {
+    log(`PROMPTFORGE_HEARTBEAT | alive | memory=${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`);
+  }, 30000); // 每30秒心跳一次
+
   const input = readJson(inputFile);
   const rawReport = input.rawReport || { shots: [] };
   const projectConfig = input.projectConfig || {};
@@ -481,11 +486,30 @@ async function main() {
 
   log(`Input shots: total=${allShots.length}, processable=${shots.length}, skipped=${allShots.length - shots.length}`);
 
+  // v6.6.9.4-patch21: 进度落盘函数
+  const progressFile = outputFile.replace('.json', '-progress.json');
+  const saveProgress = (stage, data) => {
+    safeWriteJson(progressFile, {
+      stage,
+      timestamp: Date.now(),
+      shotsProcessed: data?.length || 0,
+      ...data
+    });
+    log(`PROMPTFORGE_PROGRESS | stage=${stage} | shots=${data?.length || 0}`);
+  };
+
   try {
     const directorResult = await runDirectorStage({ shots }, projectConfig, mode);
+    saveProgress('director', { shots: directorResult?.length || 0 });
+    
     const screenwriterResults = await runScreenwriterStage(shots, directorResult, mode);
+    saveProgress('screenwriter', { shots: screenwriterResults?.length || 0 });
+    
     const cinematographerResults = await runCinematographerStage(shots, directorResult, mode);
+    saveProgress('cinematographer', { shots: cinematographerResults?.length || 0 });
+    
     const composedResults = await runComposerStage(shots, directorResult, screenwriterResults, cinematographerResults, mode);
+    saveProgress('composer', { shots: composedResults?.length || 0 });
 
     const finalShots = shots.map(shot => {
       const composed = composedResults.find(x => x.id === shot.id);
@@ -512,10 +536,12 @@ async function main() {
     });
 
     clearTimeout(workerTimer);
+    clearInterval(heartbeatInterval); // v6.6.9.4-patch21: 清理心跳
     log(`Worker completed | shots=${finalShots.length} | quality=${qualityReport.overallScore}`);
     process.exit(0);
   } catch (err) {
     clearTimeout(workerTimer);
+    clearInterval(heartbeatInterval); // v6.6.9.4-patch21: 清理心跳
     logError(`Worker failed: ${err.message}`);
     safeWriteJson(outputFile, {
       success: false,
