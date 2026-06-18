@@ -186,7 +186,7 @@ async function callLLM(prompt, options = {}) {
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      log(`🤖 LLM调用开始 | stage=${stageName} | attempt=${attempt}/${maxRetries} | promptLen=${prompt.length}`);
+      log(`🤖 LLM调用开始 | stage=${stageName} | attempt=${attempt}/${maxRetries} | promptLen=${prompt.length} | 双层超时保护`);
 
       const engine = new LLMEngine({
         model: 'kimi-k2p6',
@@ -197,11 +197,19 @@ async function callLLM(prompt, options = {}) {
         timeoutMs
       });
 
-      const result = await engine.generate(prompt, {
-        maxTokens,
-        temperature,
-        timeoutMs
-      });
+      const result = await Promise.race([
+        engine.generate(prompt, {
+          maxTokens,
+          temperature,
+          timeoutMs
+        }),
+        new Promise((_, reject) => {
+          const timer = setTimeout(() => {
+            reject(new Error(`API调用外层超时(${timeoutMs}ms)`));
+          }, timeoutMs);
+          timer.unref?.();
+        })
+      ]);
 
       const text = extractLLMText(result);
 
