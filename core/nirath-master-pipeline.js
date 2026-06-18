@@ -6552,6 +6552,12 @@ ${isNirath
         prompt = this.smartTrim(prompt, PROMPT_LENGTH.HARD_MAX);
       }
 
+      // v6.6.9.4-patch18: 最终再做一次结构化兜底，避免后续字段丢失
+      prompt = this.toStandardPrompt(shot, prompt);
+      prompt = this.ensureFinalPromptStructure(shot, prompt);
+      prompt = safeStructuredTrim(prompt, PROMPT_LENGTH.HARD_MAX);
+      prompt = this.safeTrimStructuredPrompt(prompt, PROMPT_LENGTH.HARD_MAX);
+
       shot.prompt = prompt;
       shot.length = prompt.length;
       shot.utilization = Math.round(prompt.length / PROMPT_LENGTH.HARD_MAX * 100);
