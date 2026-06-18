@@ -1072,6 +1072,27 @@ class NirathMasterPipeline {
 
           this.log('PIPELINE', `🎬 PromptForge 子进程启动 | 内存限制: ${workerMemoryMb}MB | 输入: ${inputFile}`);
 
+          // v6.6.9.4-patch21: 子进程心跳监听(外部专家方案 - 子进程活性收口器)
+          let lastHeartbeat = Date.now();
+          const heartbeatInterval = setInterval(() => {
+            // 检查进度文件是否存在（worker每完成一个stage会写入）
+            const progressFile = outputFile.replace('.json', '-progress.json');
+            if (fss.existsSync(progressFile)) {
+              try {
+                const progress = JSON.parse(fss.readFileSync(progressFile, 'utf8'));
+                this.log('PIPELINE', `💓 PromptForge心跳 | stage=${progress.stage} | shots=${progress.shotsProcessed} | elapsed=${Math.round((Date.now() - lastHeartbeat)/1000)}s`);
+                lastHeartbeat = Date.now();
+              } catch (e) {
+                // 忽略进度文件解析错误
+              }
+            }
+            // 检查子进程是否还活着
+            if (worker.killed || worker.exitCode !== null) {
+              this.log('PIPELINE', `⚠️ PromptForge子进程已退出(exitCode=${worker.exitCode}),停止心跳监听`);
+              clearInterval(heartbeatInterval);
+            }
+          }, 30000); // 每30秒检查一次
+
           const worker = spawn('node', [
             `--max-old-space-size=${workerMemoryMb}`,
             workerPath,
@@ -1097,11 +1118,13 @@ class NirathMasterPipeline {
 
             worker.on('close', (code, signal) => {
               clearTimeout(timeout);
+              clearInterval(heartbeatInterval); // v6.6.9.4-patch21: 清理心跳
               resolve({ code, signal });
             });
 
             worker.on('error', (err) => {
               clearTimeout(timeout);
+              clearInterval(heartbeatInterval); // v6.6.9.4-patch21: 清理心跳
               reject(err);
             });
           });
@@ -1227,6 +1250,12 @@ class NirathMasterPipeline {
               }
 
               this.log('PIPELINE', `✅ 合并完成: ${mergedCount}/${forgeResult.shots.length} 个镜头已优化`);
+
+              // v6.6.9.4-patch21: PromptForge合并后重新走全局标准(外部专家方案 - Prompt收口器)
+              const { applyGlobalPromptStandard } = require('../systems/prompt-output-standard');
+              const standardizedShots = applyGlobalPromptStandard(result.stages.render, result.stages);
+              const refCount = standardizedShots.filter(s => s.referenceImages && s.referenceImages.length > 0).length;
+              this.log('PIPELINE', `🎯 PromptForge合并后全局标准化 | ${refCount}/${standardizedShots.length} 镜头有定妆照`);
 
               if (mergedCount === 0) {
                 result.errors.push({
@@ -5138,6 +5167,9 @@ ${isNirath
   async stageRender(stages) {
     this.log('STAGE-11', `渲染核心${this.mode === 'nirath' ? '(Nirath v24)' : '(通用)'}`);
 
+    // v6.6.9.4-patch21: 缓存角色表到实例，供后续阶段使用(外部专家方案)
+    this._characterCache = stages.characters || {};
+
     const prompts = [];
     const { storyboard, characters, camera } = stages;
     storyboard.shots = normalizeRenderShots(storyboard.shots || []);
@@ -6658,7 +6690,14 @@ ${isNirath
     }
 
     this.log('STAGE-11', `✅ 渲染完成 | 镜头数: ${prompts.length} | 理想利用率: ${prompts.filter(p => p.utilizationStatus && p.utilizationStatus.includes('理想')).length}/${prompts.length}`);
-    return prompts;
+
+    // v6.6.9.4-patch21: 全局Prompt标准收口(外部专家方案 - Prompt收口器)
+    const { applyGlobalPromptStandard } = require('../systems/prompt-output-standard');
+    const standardizedPrompts = applyGlobalPromptStandard(prompts, stages);
+    const refInjected = standardizedPrompts.filter(p => p.referenceImages && p.referenceImages.length > 0).length;
+    this.log('STAGE-11', `🎯 全局标准化完成 | ${refInjected}/${standardizedPrompts.length} 镜头有定妆照`);
+
+    return standardizedPrompts;
   }
 
   // 🔥 v6.2-patch100-fix: 全局上下文提取方法
@@ -7288,8 +7327,30 @@ ${isNirath
       priorities: shot.priorities || null,
       qualityScore: shot.qualityScore || null,
       referenceImages: shot.referenceImages || [],
+      // v6.6.9.4-patch21: 保底 characterCard(外部专家方案 - Prompt收口器)
+      characterCard: shot.characterCard || '',
       isOpening: !!shot.isOpening
     }));
+
+    // v6.6.9.4-patch21: Stage-16 最终兜底 - 如果 referenceImages 仍为空，从角色缓存重建
+    const { applyGlobalPromptStandard } = require('../systems/prompt-output-standard');
+    shots.forEach(shot => {
+      if (!shot.referenceImages || shot.referenceImages.length === 0) {
+        const rebuilt = buildReferenceImagesForShot(
+          { characters: [shot.characterRef].filter(Boolean), type: shot.isOpening ? 'opening' : '' },
+          { characters: this._characterCache || stages.characters || {} }
+        );
+        if (rebuilt.length > 0) {
+          shot.referenceImages = rebuilt;
+          this.log('STAGE-16', `🔄 最终兜底重建定妆照: ${shot.shotId} | ${rebuilt.length}张`);
+        }
+      }
+    });
+
+    // 全局标准化最终检查
+    const standardizedShots = applyGlobalPromptStandard(shots, { characters: this._characterCache || stages.characters || {} });
+    const refCount = standardizedShots.filter(s => s.referenceImages && s.referenceImages.length > 0).length;
+    this.log('STAGE-16', `🎯 全局标准化检查 | ${refCount}/${standardizedShots.length} 镜头有定妆照`);
 
     const output = {
       meta,
