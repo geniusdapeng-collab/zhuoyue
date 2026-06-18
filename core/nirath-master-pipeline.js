@@ -1023,16 +1023,21 @@ class NirathMasterPipeline {
         }
 
         const rawReport = {
-          shots: originalRender.map(r => ({
-            id: r.id || r.shotId,
-            prompt: r.prompt,
-            scene: r.scene,
-            emotionPhase: r.emotionPhase,
-            duration: r.duration,
-            narration: r.narration,
-            dialogue: r.dialogue || '', // v6.6.9.4-patch14-fix: 补上dialogue字段
-            cameraMovement: cleanCameraMovement(r.cameraMovement) // v6.6.9.4-patch14-fix: 展平嵌套
-          }))
+          shots: originalRender
+            .filter(r => {
+              const id = r.id || r.shotId;
+              return id !== 'S00' && r.type !== 'opening' && !r.isOpening;
+            })
+            .map(r => ({
+              id: r.id || r.shotId,
+              prompt: r.prompt,
+              scene: r.scene,
+              emotionPhase: r.emotionPhase,
+              duration: r.duration,
+              narration: r.narration,
+              dialogue: r.dialogue || '', // v6.6.9.4-patch14-fix: 补上dialogue字段
+              cameraMovement: cleanCameraMovement(r.cameraMovement) // v6.6.9.4-patch14-fix: 展平嵌套
+            }))
         };
 
         const inputFile = path.join('/tmp', `promptforge-input-${Date.now()}.json`);
@@ -5670,6 +5675,13 @@ ${isNirath
         // 🔥 v2.0: 创意指数指令注入(灯光、色彩、特效、质感、氛围)
         shot.prompt = this._injectCreativeIntensityToPrompt(shot.prompt, 'STAGE-11', shot.id);
 
+        // v6.6.9.4-patch17: 新链路成功后也统一标准化
+        prompt = this.toStandardPrompt(shot, shot.prompt);
+        prompt = this.ensureFinalPromptStructure(shot, prompt);
+        prompt = safeStructuredTrim(prompt, PROMPT_LENGTH.HARD_MAX);
+        prompt = this.safeTrimStructuredPrompt(prompt, PROMPT_LENGTH.HARD_MAX);
+        shot.prompt = prompt;
+
         // v6.5.44-fix: 新链路结果必须加入 render 数组,否则后续阶段丢失镜头
         // v6.5.58-fix: 构建标准输出字段
         const existingPrompt = prompts.find(p => p.shotId === shot.id);
@@ -5679,6 +5691,19 @@ ${isNirath
         const bgSound = this._buildBackgroundSound(shot) || '';
         
         if (!existingPrompt) {
+          // v6.6.9.4-patch17: Stage-11 最终统一标准化，确保 Stage-12 可识别
+          prompt = this.toStandardPrompt(shot, prompt);
+          prompt = this.ensureFinalPromptStructure(shot, prompt);
+          prompt = safeStructuredTrim(prompt, PROMPT_LENGTH.HARD_MAX);
+          prompt = this.safeTrimStructuredPrompt(prompt, PROMPT_LENGTH.HARD_MAX);
+
+          const finalPromptStatus = PROMPT_LENGTH.getStatus(prompt.length);
+          const finalUtilization = prompt.length / PROMPT_LENGTH.HARD_MAX;
+          const utilizationStatus =
+            finalPromptStatus === 'ideal' ? '🔥理想' :
+            finalPromptStatus === 'underflow' ? '⚠️空间浪费' :
+            finalPromptStatus === 'overflow' ? '❌超标' : 'ℹ️正常';
+
           const standardOutput = {
             shotId: shot.id,
             id: shot.id,
@@ -5689,10 +5714,8 @@ ${isNirath
             duration: shot.duration,
             length: prompt.length,
             mouthAction: shot.mouthAction,
-            utilization: Math.round(prompt.length / PROMPT_LENGTH.HARD_MAX * 100),
-            utilizationStatus: prompt.length >= 970 && prompt.length <= PROMPT_LENGTH.HARD_MAX ? '🔥理想' :
-                             prompt.length > PROMPT_LENGTH.HARD_MAX ? '❌超标' :
-                             prompt.length >= 850 ? '✅达标' : '⚠️空间浪费',
+            utilization: Math.round(finalUtilization * 100),
+            utilizationStatus,
             qualityScore: { totalScore: 75 },
             enhanced: true,
             cameraMovement: shot.cameraMovement || null,
@@ -7943,6 +7966,29 @@ ${isNirath
     }
 
     return result;
+  }
+
+  /**
+   * 安全裁剪结构化Prompt，防止截断【块标记】导致 Stage-12 解析失败
+   * v6.6.9.4-patch17: 外部专家方案 - P1 修复
+   */
+  safeTrimStructuredPrompt(prompt, maxLength) {
+    if (!prompt || prompt.length <= maxLength) return prompt;
+
+    let trimmed = prompt.slice(0, maxLength);
+
+    const lastOpen = trimmed.lastIndexOf('【');
+    const lastClose = trimmed.lastIndexOf('】');
+
+    // 如果最后一个块被截断，回退到该块之前
+    if (lastOpen > lastClose) {
+      trimmed = trimmed.slice(0, lastOpen);
+    }
+
+    // 清理尾部残缺分隔符
+    trimmed = trimmed.replace(/\s*\|\s*$/, '').trim();
+
+    return trimmed;
   }
 
   // v6.3-patch10-fix: 最终兜底补齐 - 如果提示词仍然太短,强制补齐到目标长度

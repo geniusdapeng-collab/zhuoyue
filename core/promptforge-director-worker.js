@@ -1,458 +1,450 @@
 'use strict';
 
-/**
- * PromptForge Director Worker - 最终修复版
- *
- * 修复内容：
- * 1. 修复 callLLM 中 result.content || result 导致 object.trim() 崩溃
- * 2. 统一提取 LLM 返回 content / text / reasoning_content
- * 3. 增强 API Key 兼容
- * 4. 所有阶段加可观测日志，杜绝静默降级
- * 5. fallback 结果统一带 fallbackUsed: true 标记
- */
-
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
+
+const WORKER_TIMEOUT_MS = 15 * 60 * 1000; // 15分钟
+const DEFAULT_CALL_TIMEOUT_MS = 120 * 1000; // 单次LLM调用 2分钟
+const DEFAULT_MAX_RETRIES = 2;
 
 function log(...args) {
-  console.log('[PromptForgeWorker]', ...args);
+  console.log(`[PromptForgeWorker]`, ...args);
 }
 
 function logError(...args) {
-  console.error('[PromptForgeWorker]', ...args);
-}
-
-function safeReadJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  console.error(`[PromptForgeWorker][ERROR]`, ...args);
 }
 
 function safeWriteJson(filePath, data) {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+  } catch (err) {
+    logError(`safeWriteJson failed: ${err.message}`);
+  }
 }
 
-function getAvailableApiKey() {
-  return (
-    process.env.VOLCENGINE_ARK_API_KEY ||
-    process.env.ARK_API_KEY ||
-    process.env.VOLCENGINE_API_KEY ||
-    process.env.OPENAI_API_KEY ||
-    process.env.KIMI_API_KEY ||
-    process.env.MOONSHOT_API_KEY ||
-    ''
-  );
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function extractJSONFromText(text) {
-  if (!text || typeof text !== 'string') return null;
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
-  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (codeBlock && codeBlock[1]) {
-    const candidate = codeBlock[1].trim();
+function cleanText(text) {
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function cleanCameraMovement(cm) {
+  if (!cm || typeof cm !== 'object') return cm;
+  if (cm.timeline && typeof cm.timeline === 'object' && cm.timeline.timeline) {
+    return {
+      ...cm,
+      timeline: {
+        ...cm.timeline.timeline,
+        strategy: cm.timeline.strategy || cm.timeline.timeline.strategy,
+        reasoning: cm.timeline.reasoning || cm.timeline.timeline.reasoning
+      }
+    };
+  }
+  return cm;
+}
+
+/**
+ * 每次LLM调用使用独立子进程，超时可强杀
+ */
+async function callLLM(prompt, options = {}) {
+  const {
+    timeoutMs = DEFAULT_CALL_TIMEOUT_MS,
+    maxTokens = 2048,
+    temperature = 1,
+    model = 'kimi-k2p6',
+    mode = 'production',
+    maxRetries = DEFAULT_MAX_RETRIES,
+    retryDelayMs = 3000,
+    stageLabel = 'unknown'
+  } = options;
+
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    const inputFile = path.join('/tmp', `llm-isolated-input-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+    const outputFile = path.join('/tmp', `llm-isolated-output-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+    const workerPath = path.join(__dirname, 'llm-call-isolated-worker.js');
+
     try {
-      JSON.parse(candidate);
-      return candidate;
-    } catch (_) {}
-  }
+      fs.writeFileSync(inputFile, JSON.stringify({
+        prompt,
+        options: {
+          timeoutMs,
+          maxTokens,
+          temperature,
+          model,
+          mode
+        }
+      }, null, 2), 'utf8');
 
-  const lastBrace = text.lastIndexOf('}');
-  if (lastBrace >= 0) {
-    let braceCount = 0;
-    let start = -1;
-    for (let i = lastBrace; i >= 0; i--) {
-      if (text[i] === '}') braceCount++;
-      if (text[i] === '{') braceCount--;
-      if (braceCount === 0) {
-        start = i;
-        break;
+      const child = spawn('node', [
+        '--max-old-space-size=512',
+        workerPath,
+        inputFile,
+        outputFile
+      ], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, NODE_ENV: 'production' }
+      });
+
+      let stdout = '';
+      let stderr = '';
+      child.stdout.on('data', d => { stdout += d.toString(); });
+      child.stderr.on('data', d => { stderr += d.toString(); });
+
+      const result = await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          try {
+            child.kill('SIGKILL');
+          } catch (_) {}
+          reject(new Error(`LLM isolated call timeout after ${timeoutMs}ms | stage=${stageLabel} | attempt=${attempt}`));
+        }, timeoutMs);
+
+        timer.unref?.();
+
+        child.on('error', (err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+
+        child.on('close', (code, signal) => {
+          clearTimeout(timer);
+
+          if (signal === 'SIGKILL') {
+            return reject(new Error(`LLM isolated worker killed by SIGKILL | stage=${stageLabel} | attempt=${attempt}`));
+          }
+
+          if (!fs.existsSync(outputFile)) {
+            return reject(new Error(`LLM isolated worker missing output file | code=${code} | stderr=${stderr.slice(0, 500)}`));
+          }
+
+          try {
+            const data = JSON.parse(fs.readFileSync(outputFile, 'utf8'));
+            if (!data.success) {
+              return reject(new Error(data.error || `LLM isolated worker failed | code=${code}`));
+            }
+            resolve(data.result);
+          } catch (e) {
+            reject(new Error(`LLM isolated worker output parse failed: ${e.message}`));
+          }
+        });
+      });
+
+      return result;
+    } catch (err) {
+      lastError = err;
+      logError(`callLLM attempt ${attempt} failed | ${stageLabel} | ${err.message}`);
+      if (attempt <= maxRetries) {
+        await sleep(retryDelayMs);
       }
-    }
-    if (start >= 0) {
-      const candidate = text.slice(start, lastBrace + 1).trim();
-      try {
-        JSON.parse(candidate);
-        return candidate;
-      } catch (_) {}
+    } finally {
+      try { if (fs.existsSync(inputFile)) fs.unlinkSync(inputFile); } catch (_) {}
+      try { if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile); } catch (_) {}
     }
   }
 
-  const lastBracket = text.lastIndexOf(']');
-  if (lastBracket >= 0) {
-    let bracketCount = 0;
-    let start = -1;
-    for (let i = lastBracket; i >= 0; i--) {
-      if (text[i] === ']') bracketCount++;
-      if (text[i] === '[') bracketCount--;
-      if (bracketCount === 0) {
-        start = i;
-        break;
-      }
-    }
-    if (start >= 0) {
-      const candidate = text.slice(start, lastBracket + 1).trim();
-      try {
-        JSON.parse(candidate);
-        return candidate;
-      } catch (_) {}
-    }
-  }
-
-  return null;
+  throw lastError || new Error(`callLLM failed | stage=${stageLabel}`);
 }
 
-function extractLLMText(result) {
-  if (result == null) return '';
-
-  if (typeof result === 'string') {
-    return result.trim();
-  }
-
-  if (typeof result !== 'object') {
-    return String(result).trim();
-  }
-
-  const directCandidates = [
-    result.content,
-    result.text,
-    result.output,
-    result.message,
-    result.data,
-    result.rawContent
-  ];
-
-  for (const item of directCandidates) {
-    if (typeof item === 'string' && item.trim()) {
-      return item.trim();
-    }
-  }
-
-  const choiceContent =
-    result?.choices?.[0]?.message?.content ||
-    result?.choices?.[0]?.text ||
-    result?.content?.[0]?.text ||
-    '';
-
-  if (typeof choiceContent === 'string' && choiceContent.trim()) {
-    return choiceContent.trim();
-  }
-
-  const reasoning =
-    result?.choices?.[0]?.message?.reasoning_content ||
-    result?.reasoning_content ||
-    result?.reasoning ||
-    '';
-
-  if (typeof reasoning === 'string' && reasoning.trim()) {
-    const extracted = extractJSONFromText(reasoning);
-    if (extracted) return extracted;
-    return reasoning.trim();
-  }
-
-  return '';
+function extractContentFromLLMResult(result) {
+  if (!result) return '';
+  if (typeof result === 'string') return result;
+  if (typeof result.content === 'string') return result.content;
+  if (typeof result.text === 'string') return result.text;
+  if (result.choices?.[0]?.message?.content) return result.choices[0].message.content;
+  return JSON.stringify(result);
 }
 
-function safeParseJson(text, fallback = null) {
-  if (!text || typeof text !== 'string') return fallback;
+function buildDirectorPrompt(rawReport, projectConfig = {}, mode = 'generic') {
+  const shots = rawReport.shots || [];
+  const shotSummary = shots.map(s => {
+    return `- ${s.id} | scene=${s.scene || ''} | duration=${s.duration || 0}s | emotion=${s.emotionPhase || ''} | dialogue=${(s.dialogue || '').slice(0, 60)}`;
+  }).join('\n');
 
+  return `
+你是短视频总导演。请对以下镜头集合做导演级整体编排建议。
+目标：
+1. 统一风格
+2. 明确情绪推进
+3. 指出需要强化的镜头重点
+4. 不要输出废话
+
+模式: ${mode}
+项目主题: ${projectConfig.theme || ''}
+标题: ${projectConfig.title || projectConfig.projectName || ''}
+
+镜头列表:
+${shotSummary}
+
+请输出 JSON：
+{
+  "overallDirection": "一句话总方向",
+  "styleGuide": "整体风格",
+  "emotionArc": "整体情绪弧线",
+  "shotNotes": [
+    {
+      "id": "S01",
+      "note": "该镜头导演建议"
+    }
+  ]
+}
+`.trim();
+}
+
+function buildScreenwriterPrompt(shot, directorResult, mode = 'generic') {
+  const note = (directorResult.shotNotes || []).find(x => x.id === shot.id)?.note || '';
+  return `
+你是编剧优化器。请只优化当前镜头的台词/叙事表达，不要改镜头编号。
+
+模式: ${mode}
+镜头ID: ${shot.id}
+场景: ${shot.scene || ''}
+时长: ${shot.duration || 0}s
+情绪: ${shot.emotionPhase || ''}
+原台词: ${shot.dialogue || ''}
+导演建议: ${note}
+
+要求：
+1. 台词更自然、更有画面感
+2. 不要空话
+3. 不要输出解释
+4. 只输出 JSON
+
+格式：
+{
+  "id": "${shot.id}",
+  "dialogue": "优化后的台词",
+  "dialogueDepth": "L0/L1/L2/L3",
+  "emotionArc": ["情绪1", "情绪2"]
+}
+`.trim();
+}
+
+function buildCinematographerPrompt(shot, directorResult, mode = 'generic') {
+  const note = (directorResult.shotNotes || []).find(x => x.id === shot.id)?.note || '';
+  return `
+你是摄影指导。请只为当前镜头输出运镜与光影建议。
+
+模式: ${mode}
+镜头ID: ${shot.id}
+场景: ${shot.scene || ''}
+时长: ${shot.duration || 0}s
+情绪: ${shot.emotionPhase || ''}
+原Prompt: ${(shot.prompt || '').slice(0, 1000)}
+导演建议: ${note}
+运镜输入: ${JSON.stringify(cleanCameraMovement(shot.cameraMovement) || {})}
+
+要求：
+1. 强化镜头语言
+2. 强化光影层次
+3. 不要空话
+4. 只输出 JSON
+
+格式：
+{
+  "id": "${shot.id}",
+  "cameraDesign": "运镜设计",
+  "lightingDesign": "光影设计",
+  "visualElements": "关键视觉元素",
+  "performance": "表演/状态建议"
+}
+`.trim();
+}
+
+function buildComposerPrompt(shot, directorResult, screenwriterResult, cinematographerResult, mode = 'generic') {
+  return `
+你是最终提示词合成师。请把以下信息合成为最终 Prompt。
+
+模式: ${mode}
+镜头ID: ${shot.id}
+场景: ${shot.scene || ''}
+时长: ${shot.duration || 0}s
+原始Prompt: ${(shot.prompt || '').slice(0, 1200)}
+优化台词: ${screenwriterResult?.dialogue || shot.dialogue || ''}
+运镜设计: ${cinematographerResult?.cameraDesign || ''}
+光影设计: ${cinematographerResult?.lightingDesign || ''}
+视觉元素: ${cinematographerResult?.visualElements || ''}
+表演建议: ${cinematographerResult?.performance || ''}
+
+要求：
+1. 输出单条最终 Prompt
+2. 保留结构化块格式，优先使用：
+   【视觉】【动态】【空间】【情绪】【镜头时间轴】【照明】【环境音效】【渲染】【导演】
+3. 长度控制在 1500 字符内
+4. 只输出 JSON
+
+格式：
+{
+  "id": "${shot.id}",
+  "finalPrompt": "最终Prompt"
+}
+`.trim();
+}
+
+function safeParseJSON(text, fallback = null) {
+  if (!text) return fallback;
   try {
     return JSON.parse(text);
   } catch (_) {}
 
-  const extracted = extractJSONFromText(text);
-  if (extracted) {
+  const match = String(text).match(/\{[\s\S]*\}/);
+  if (match) {
     try {
-      return JSON.parse(extracted);
+      return JSON.parse(match[0]);
     } catch (_) {}
   }
-
   return fallback;
 }
 
-async function callLLM(prompt, options = {}) {
-  const {
-    maxTokens = 8192,
-    temperature = 1,
-    timeoutMs = 180000, // v6.6.9.4-patch14-fix: 缩短默认超时从600000到180000(3分钟)
-    maxRetries = 3,
-    stageName = 'unknown'
-  } = options;
-
-  const apiKey = getAvailableApiKey();
-  if (!apiKey) {
-    throw new Error(`未检测到可用API Key | stage=${stageName}`);
-  }
-
-  const { LLMEngine } = require('../systems/llm-reasoning-engine');
-  let lastError = null;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      log(`🤖 LLM调用开始 | stage=${stageName} | attempt=${attempt}/${maxRetries} | promptLen=${prompt.length} | 双层超时保护`);
-
-      const engine = new LLMEngine({
-        model: 'kimi-k2p6',
-        mode: 'production',
-        maxRetries: 1,
-        maxTokens,
-        temperature,
-        timeoutMs
-      });
-
-      const result = await Promise.race([
-        engine.generate(prompt, {
-          maxTokens,
-          temperature,
-          timeoutMs
-        }),
-        new Promise((_, reject) => {
-          const timer = setTimeout(() => {
-            reject(new Error(`API调用外层超时(${timeoutMs}ms)`));
-          }, timeoutMs);
-          timer.unref?.();
-        })
-      ]);
-
-      const text = extractLLMText(result);
-
-      if (typeof text === 'string' && text.trim().length > 0) {
-        log(`✅ LLM调用成功 | stage=${stageName} | outputLen=${text.trim().length}`);
-        return text.trim();
-      }
-
-      throw new Error(`LLM返回空文本 | stage=${stageName}`);
-    } catch (err) {
-      lastError = err;
-      logError(`❌ LLM调用失败 | stage=${stageName} | attempt=${attempt}/${maxRetries} | error=${err.message}`);
-
-      if (attempt < maxRetries) {
-        const waitMs = Math.min(2000 * Math.pow(2, attempt - 1), 10000);
-        await new Promise(resolve => setTimeout(resolve, waitMs));
-      }
-    }
-  }
-
-  throw new Error(`LLM调用最终失败 | stage=${stageName} | error=${lastError?.message || 'unknown'}`);
+async function runDirectorStage(rawReport, projectConfig, mode) {
+  log(`Stage 1 Director start`);
+  const prompt = buildDirectorPrompt(rawReport, projectConfig, mode);
+  const result = await callLLM(prompt, {
+    timeoutMs: DEFAULT_CALL_TIMEOUT_MS,
+    maxTokens: 2500,
+    stageLabel: 'Stage-1-Director',
+    mode
+  });
+  const parsed = safeParseJSON(extractContentFromLLMResult(result), {
+    overallDirection: '',
+    styleGuide: '',
+    emotionArc: '',
+    shotNotes: []
+  });
+  log(`Stage 1 Director done | prompt=${prompt.length} chars`);
+  return parsed;
 }
 
-/**
- * 本地 fallback - 总导演
- */
-function fallbackDirector(input) {
-  const firstShot = input?.rawReport?.shots?.[0] || {};
-  return {
-    theme: input?.projectConfig?.theme || '通用主题',
-    visualTone: '超写实, 电影级, 叙事清晰',
-    narrativeStrategy: '逐镜推进, 强化角色与场景可读性',
-    directorStyle: '通用导演风格',
-    coreEmotion: firstShot.emotionPhase || 'neutral',
-    fallbackUsed: true
-  };
-}
+async function runScreenwriterStage(shots, directorResult, mode) {
+  log(`Stage 2a Screenwriter start | shots=${shots.length}`);
+  const results = [];
 
-/**
- * 本地 fallback - 编剧
- */
-function fallbackScreenwriter(shot, directorIntent) {
-  return {
-    shotId: shot.id,
-    dialogue: shot.dialogue || shot.narration || '',
-    dialogueDepth: shot.dialogueDepth || 'L1',
-    emotionArc: [shot.emotionPhase || directorIntent.coreEmotion || 'neutral'],
-    fallbackUsed: true
-  };
-}
-
-/**
- * 本地 fallback - 摄影指导
- */
-function fallbackCinematographer(shot, directorIntent) {
-  return {
-    shotId: shot.id,
-    cameraDesign: shot.cameraMovement?.description || '中景稳定构图',
-    lightingDesign: shot.lighting?.description || '自然光照，明暗层次清晰',
-    visualElements: shot.visualPrompt || shot.scene || '',
-    performance: `情绪基调: ${shot.emotionPhase || directorIntent.coreEmotion || 'neutral'}`,
-    promptEnhancement: '增强主体清晰度与镜头叙事性',
-    fallbackUsed: true
-  };
-}
-
-/**
- * 本地 fallback - 合成师
- */
-function fallbackComposer(shot, directorIntent, writerResult, cameraResult) {
-  const parts = [
-    `【视觉】${shot.visualPrompt || shot.scene || '主体画面清晰，角色明确'}`,
-    `【动作】${shot.action || shot.mouthAction || '自然动作'}`,
-    `【环境布景】${shot.scene || '场景环境明确'}`,
-    `【情绪】${shot.emotionPhase || directorIntent.coreEmotion || 'neutral'}`,
-    `【运镜】${cameraResult.cameraDesign || '中景稳定构图'}`,
-    `【镜头时间轴】${shot.timelineString || '0-100% 平稳推进'}`,
-    `【照明】${cameraResult.lightingDesign || '自然光照，明暗层次清晰'}`,
-    `【环境音效】${shot.backgroundSoundString || '环境音自然，声画同步'}`,
-    `【技术规格】${shot.renderStyle || 'hyperrealistic cinematic quality, 35mm film grain, HDR'}`,
-    `【导演】${directorIntent.directorStyle || '通用导演风格'}`
-  ];
-
-  if (writerResult.dialogue) {
-    parts.push(`【台词】${writerResult.dialogue}`);
-  }
-
-  return {
-    shotId: shot.id,
-    finalPrompt: parts.join(' | '),
-    fallbackUsed: true
-  };
-}
-
-async function runDirectorStage(input) {
-  const prompt = `
-你是总导演。请根据项目配置与镜头列表，输出一个 JSON：
-{
-  "theme": "...",
-  "visualTone": "...",
-  "narrativeStrategy": "...",
-  "directorStyle": "...",
-  "coreEmotion": "..."
-}
-
-项目配置:
-${JSON.stringify(input.projectConfig || {}, null, 2)}
-
-镜头列表:
-${JSON.stringify(input.rawReport?.shots || [], null, 2)}
-`;
-
-  try {
-    const text = await callLLM(prompt, {
-      stageName: 'Stage 1 Director',
-      maxTokens: 2048
+  for (const shot of shots) {
+    const label = `Stage-2a-${shot.id}`;
+    log(`${label} start`);
+    const prompt = buildScreenwriterPrompt(shot, directorResult, mode);
+    const llmResult = await callLLM(prompt, {
+      timeoutMs: DEFAULT_CALL_TIMEOUT_MS,
+      maxTokens: 1800,
+      stageLabel: label,
+      mode
     });
-    const parsed = safeParseJson(text);
-    if (parsed && typeof parsed === 'object') {
-      return {
-        ...parsed,
-        fallbackUsed: false
-      };
-    }
-    throw new Error('导演阶段返回JSON解析失败');
-  } catch (err) {
-    log(`🔄 Stage 1 回退到本地合成 | ${err.message}`);
-    return fallbackDirector(input);
-  }
-}
-
-async function runScreenwriterStage(shot, directorIntent) {
-  const prompt = `
-你是首席编剧。请为镜头输出 JSON：
-{
-  "shotId": "${shot.id}",
-  "dialogue": "...",
-  "dialogueDepth": "L0|L1|L2|L3",
-  "emotionArc": ["..."]
-}
-
-导演意图:
-${JSON.stringify(directorIntent, null, 2)}
-
-镜头信息:
-${JSON.stringify(shot, null, 2)}
-`;
-
-  try {
-    const text = await callLLM(prompt, {
-      stageName: `Stage 2a Screenwriter ${shot.id}`,
-      maxTokens: 2048
+    const parsed = safeParseJSON(extractContentFromLLMResult(llmResult), {
+      id: shot.id,
+      dialogue: shot.dialogue || '',
+      dialogueDepth: 'L0',
+      emotionArc: []
     });
-    const parsed = safeParseJson(text);
-    if (parsed && typeof parsed === 'object') {
-      return {
-        ...parsed,
-        fallbackUsed: false
-      };
-    }
-    throw new Error('编剧阶段返回JSON解析失败');
-  } catch (err) {
-    log(`🔄 Stage 2a ${shot.id} 回退到本地合成 | ${err.message}`);
-    return fallbackScreenwriter(shot, directorIntent);
+    results.push(parsed);
+    log(`${label} done`);
   }
+
+  return results;
 }
 
-async function runCinematographerStage(shot, directorIntent) {
-  const prompt = `
-你是摄影指导。请为镜头输出 JSON：
-{
-  "shotId": "${shot.id}",
-  "cameraDesign": "...",
-  "lightingDesign": "...",
-  "visualElements": "...",
-  "performance": "...",
-  "promptEnhancement": "..."
-}
+async function runCinematographerStage(shots, directorResult, mode) {
+  log(`Stage 2b Cinematographer start | shots=${shots.length}`);
+  const results = [];
 
-导演意图:
-${JSON.stringify(directorIntent, null, 2)}
-
-镜头信息:
-${JSON.stringify(shot, null, 2)}
-`;
-
-  try {
-    const text = await callLLM(prompt, {
-      stageName: `Stage 2b Cinematographer ${shot.id}`,
-      maxTokens: 2048
+  for (const shot of shots) {
+    const label = `Stage-2b-${shot.id}`;
+    log(`${label} start`);
+    const prompt = buildCinematographerPrompt(shot, directorResult, mode);
+    const llmResult = await callLLM(prompt, {
+      timeoutMs: DEFAULT_CALL_TIMEOUT_MS,
+      maxTokens: 1800,
+      stageLabel: label,
+      mode
     });
-    const parsed = safeParseJson(text);
-    if (parsed && typeof parsed === 'object') {
-      return {
-        ...parsed,
-        fallbackUsed: false
-      };
-    }
-    throw new Error('摄影阶段返回JSON解析失败');
-  } catch (err) {
-    log(`🔄 Stage 2b ${shot.id} 回退到本地合成 | ${err.message}`);
-    return fallbackCinematographer(shot, directorIntent);
-  }
-}
-
-async function runComposerStage(shot, directorIntent, writerResult, cameraResult) {
-  const prompt = `
-你是分镜合成师。请融合导演、编剧、摄影信息，为镜头输出 JSON：
-{
-  "shotId": "${shot.id}",
-  "finalPrompt": "..."
-}
-
-导演意图:
-${JSON.stringify(directorIntent, null, 2)}
-
-编剧结果:
-${JSON.stringify(writerResult, null, 2)}
-
-摄影结果:
-${JSON.stringify(cameraResult, null, 2)}
-
-镜头信息:
-${JSON.stringify(shot, null, 2)}
-`;
-
-  try {
-    const text = await callLLM(prompt, {
-      stageName: `Stage 3 Composer ${shot.id}`,
-      maxTokens: 4096
+    const parsed = safeParseJSON(extractContentFromLLMResult(llmResult), {
+      id: shot.id,
+      cameraDesign: '',
+      lightingDesign: '',
+      visualElements: '',
+      performance: ''
     });
-    const parsed = safeParseJson(text);
-    if (parsed && typeof parsed === 'object' && parsed.finalPrompt) {
-      return {
-        ...parsed,
-        fallbackUsed: false
-      };
-    }
-    throw new Error('合成阶段返回JSON解析失败');
-  } catch (err) {
-    log(`🔄 Stage 3 ${shot.id} 回退到本地合成 | ${err.message}`);
-    return fallbackComposer(shot, directorIntent, writerResult, cameraResult);
+    results.push(parsed);
+    log(`${label} done`);
   }
+
+  return results;
+}
+
+async function runComposerStage(shots, directorResult, screenwriterResults, cinematographerResults, mode) {
+  log(`Stage 3 Composer start | shots=${shots.length}`);
+  const results = [];
+
+  for (const shot of shots) {
+    const label = `Stage-3-${shot.id}`;
+    log(`${label} start`);
+
+    const sw = screenwriterResults.find(x => x.id === shot.id) || null;
+    const cam = cinematographerResults.find(x => x.id === shot.id) || null;
+
+    const prompt = buildComposerPrompt(shot, directorResult, sw, cam, mode);
+    const llmResult = await callLLM(prompt, {
+      timeoutMs: DEFAULT_CALL_TIMEOUT_MS,
+      maxTokens: 2500,
+      stageLabel: label,
+      mode
+    });
+
+    const parsed = safeParseJSON(extractContentFromLLMResult(llmResult), {
+      id: shot.id,
+      finalPrompt: shot.prompt || ''
+    });
+
+    results.push(parsed);
+    log(`${label} done`);
+  }
+
+  return results;
+}
+
+function buildQualityReport(finalShots) {
+  const details = finalShots.map(shot => {
+    const prompt = cleanText(shot.finalPrompt || '');
+    const structureScore =
+      (prompt.includes('【视觉】') ? 1 : 0) +
+      (prompt.includes('【镜头时间轴】') ? 1 : 0) +
+      (prompt.includes('【照明】') ? 1 : 0);
+
+    const lengthScore =
+      prompt.length >= 900 && prompt.length <= 1500 ? 5 :
+      prompt.length >= 700 ? 3 : 1;
+
+    const cameraPassed = /【镜头时间轴】|dolly|pan|tilt|orbit|tracking/i.test(prompt);
+
+    const totalScore = structureScore * 10 + lengthScore * 5 + (cameraPassed ? 20 : 0) + 40;
+
+    return {
+      shotId: shot.id,
+      structureScore,
+      lengthScore,
+      cameraPassed,
+      totalScore
+    };
+  });
+
+  const overallScore = details.length
+    ? Math.round(details.reduce((sum, d) => sum + d.totalScore, 0) / details.length)
+    : 0;
+
+  return {
+    overallScore,
+    overallPassed: overallScore >= 50,
+    shotDetails: details
+  };
 }
 
 async function main() {
@@ -460,99 +452,71 @@ async function main() {
   const outputFile = process.argv[3];
 
   if (!inputFile || !outputFile) {
-    logError('用法: node promptforge-director-worker.js <inputFile> <outputFile>');
-    process.exit(1);
+    throw new Error('Usage: node promptforge-director-worker.js <inputFile> <outputFile>');
   }
 
-  // v6.6.9.4-patch14-fix: Worker全局超时保护，防止LLM API阻塞导致进程永远挂起
-  const WORKER_TIMEOUT_MS = 900000; // 15分钟
   const workerTimer = setTimeout(() => {
     logError(`⏱️ Worker全局超时(${WORKER_TIMEOUT_MS}ms)，强制退出`);
     safeWriteJson(outputFile, {
       success: false,
-      error: `Worker全局超时(${WORKER_TIMEOUT_MS}ms)，LLM API阻塞或处理过久`,
-      shots: [],
-      qualityReport: { overallPassed: false, overallScore: 0, fallbackCount: 0, shotDetails: [] }
+      error: `Worker global timeout after ${WORKER_TIMEOUT_MS}ms`
     });
     process.exit(1);
   }, WORKER_TIMEOUT_MS);
+  workerTimer.unref?.();
 
-  log(`🚀 Worker启动 | input=${inputFile} | output=${outputFile} | 全局超时=${WORKER_TIMEOUT_MS}ms`);
+  const input = readJson(inputFile);
+  const rawReport = input.rawReport || { shots: [] };
+  const projectConfig = input.projectConfig || {};
+  const mode = input.mode || 'generic';
+
+  log(`Worker start | mode=${mode} | input=${inputFile}`);
+
+  // 关键修复：跳过 S00 / opening
+  const allShots = Array.isArray(rawReport.shots) ? rawReport.shots : [];
+  const shots = allShots.filter(s => {
+    const id = s.id || s.shotId;
+    return id !== 'S00' && s.type !== 'opening' && !s.isOpening;
+  });
+
+  log(`Input shots: total=${allShots.length}, processable=${shots.length}, skipped=${allShots.length - shots.length}`);
 
   try {
-    const input = safeReadJson(inputFile);
-    const rawShots = input?.rawReport?.shots || [];
+    const directorResult = await runDirectorStage({ shots }, projectConfig, mode);
+    const screenwriterResults = await runScreenwriterStage(shots, directorResult, mode);
+    const cinematographerResults = await runCinematographerStage(shots, directorResult, mode);
+    const composedResults = await runComposerStage(shots, directorResult, screenwriterResults, cinematographerResults, mode);
 
-    log(`🎬 Stage 1: 总导演建立创作意图...`);
-    const directorIntent = await runDirectorStage(input);
-
-    const outputShots = [];
-
-    for (let i = 0; i < rawShots.length; i++) {
-      const shot = rawShots[i];
-      log(`🎬 处理镜头 ${i + 1}/${rawShots.length}: ${shot.id}`);
-
-      log(`📝 Stage 2a: ${shot.id} 编剧台词...`);
-      const writerResult = await runScreenwriterStage(shot, directorIntent);
-
-      log(`🎥 Stage 2b: ${shot.id} 摄影设计...`);
-      const cameraResult = await runCinematographerStage(shot, directorIntent);
-
-      log(`🔧 Stage 3: ${shot.id} 合成Prompt...`);
-      const composeResult = await runComposerStage(shot, directorIntent, writerResult, cameraResult);
-
-      outputShots.push({
+    const finalShots = shots.map(shot => {
+      const composed = composedResults.find(x => x.id === shot.id);
+      return {
         id: shot.id,
-        shotId: shot.id,
-        finalPrompt: composeResult.finalPrompt,
-        dialogue: writerResult.dialogue,
-        dialogueDepth: writerResult.dialogueDepth,
-        emotionArc: writerResult.emotionArc,
-        cameraDesign: cameraResult.cameraDesign,
-        lightingDesign: cameraResult.lightingDesign,
-        visualElements: cameraResult.visualElements,
-        performance: cameraResult.performance,
-        promptEnhancement: cameraResult.promptEnhancement,
-        fallbackUsed: !!(
-          composeResult.fallbackUsed ||
-          writerResult.fallbackUsed ||
-          cameraResult.fallbackUsed
-        )
-      });
-    }
+        finalPrompt: cleanText(composed?.finalPrompt || shot.prompt || ''),
+        dialogue: (screenwriterResults.find(x => x.id === shot.id)?.dialogue) || shot.dialogue || '',
+        cameraDesign: (cinematographerResults.find(x => x.id === shot.id)?.cameraDesign) || '',
+        lightingDesign: (cinematographerResults.find(x => x.id === shot.id)?.lightingDesign) || ''
+      };
+    });
 
-    const fallbackCount = outputShots.filter(s => s.fallbackUsed).length;
+    const qualityReport = buildQualityReport(finalShots);
 
-    const qualityReport = {
-      overallScore: fallbackCount === 0 ? 88 : 75,
-      overallPassed: true,
-      fallbackCount,
-      shotDetails: outputShots.map(s => ({
-        shotId: s.id,
-        structureScore: 3,
-        lengthScore: (s.finalPrompt?.length || 0) > 300 ? 1 : 0,
-        cameraPassed: !!s.cameraDesign,
-        totalScore: s.fallbackUsed ? 75 : 88,
-        fallbackUsed: s.fallbackUsed
-      }))
-    };
-
-    const output = {
+    safeWriteJson(outputFile, {
       success: true,
-      directorIntent,
-      shots: outputShots,
+      shots: finalShots,
       qualityReport,
-      fallbackUsed: fallbackCount > 0,
-      fallbackCount
-    };
+      meta: {
+        totalShots: finalShots.length,
+        skippedOpening: allShots.length - finalShots.length,
+        mode
+      }
+    });
 
-    safeWriteJson(outputFile, output);
-    log(`✅ Worker完成 | shots=${outputShots.length} | fallbackCount=${fallbackCount} | output=${outputFile}`);
-    clearTimeout(workerTimer); // v6.6.9.4-patch14-fix: 正常完成时清理全局超时
+    clearTimeout(workerTimer);
+    log(`Worker completed | shots=${finalShots.length} | quality=${qualityReport.overallScore}`);
     process.exit(0);
   } catch (err) {
-    logError(`💥 Worker失败: ${err.message}`);
-    logError(err.stack || '');
+    clearTimeout(workerTimer);
+    logError(`Worker failed: ${err.message}`);
     safeWriteJson(outputFile, {
       success: false,
       error: err.message,
@@ -562,12 +526,7 @@ async function main() {
   }
 }
 
-if (require.main === module) {
-  main();
-}
-
-module.exports = {
-  callLLM,
-  extractLLMText,
-  extractJSONFromText
-};
+main().catch((err) => {
+  logError(`Fatal: ${err.message}`);
+  process.exit(1);
+});
