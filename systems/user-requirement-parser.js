@@ -362,7 +362,7 @@ class UserRequirementParser {
       const response = await this.llmEngine.generate({
         prompt: prompt,
         maxTokens: 2000,
-        temperature: 0.3
+        temperature: 1
       });
 
       // v6.6.9.4-patch20: 适配 LLMEngine.generate 返回对象格式

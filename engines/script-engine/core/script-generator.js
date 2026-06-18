@@ -13,7 +13,7 @@ class ScriptGenerator {
       apiKey: options.apiKey || process.env.VOLCENGINE_ARK_API_KEY,
       model: options.model || 'ep-20260518004622-jp46s', // 使用文本模型
       maxTokens: options.maxTokens || 8192,
-      temperature: options.temperature || 0.7,
+      temperature: options.temperature || 1,
       promptTemplateDir: options.promptTemplateDir || path.join(__dirname, '../prompts'),
       templateDir: options.templateDir || path.join(__dirname, '../templates'),
       timeout: options.timeout || 180000,
