@@ -8,6 +8,7 @@ const { resolvePortraitsForRole, resolveBestAngles } = require('./portrait-resol
 const { buildRenderPayload, imageFileToDataUrl } = require('./render-request-builder');
 const renderPolicy = require('../config/render-policy');
 const { ValidationError, ExternalAPIError } = require('./errors');
+const { RenderPipelineGuard } = require('../scripts/render-pipeline-guard');
 
 const logger = createLogger('render-submitter');
 
@@ -132,9 +133,36 @@ class RenderSubmitter {
       model: options.model || this.model,
       shot,
       referenceImages,
+      characters: shot.characters || [],
       ratio: options.ratio || renderPolicy.defaultRatio,
-      resolution: options.resolution || renderPolicy.defaultResolution
+      resolution: options.resolution || renderPolicy.defaultResolution,
+      isPreview: options.isPreview || false
     });
+
+    // 🔒 【v6.6.3-fix】PipelineGuard 强制检查（不通过则阻止提交）
+    const pipelineGuard = new RenderPipelineGuard();
+    const guardResult = pipelineGuard.check(payload);
+    
+    if (!guardResult.pass) {
+      console.error(`\n⛔ PipelineGuard 检查失败，阻止提交！`);
+      for (const error of guardResult.errors) {
+        console.error(`   ❌ [${error.rule}] ${error.message}`);
+        console.error(`      修复: ${error.fix}`);
+      }
+      throw new ValidationError(`PIPELINE_GUARD_FAILED: ${guardResult.errors.map(e => e.message).join('; ')}`, {
+        details: {
+          shotId: shot.id || shot.shotId,
+          errors: guardResult.errors
+        }
+      });
+    }
+    
+    if (guardResult.warnings.length > 0) {
+      console.log(`\n⚠️ PipelineGuard 警告:`);
+      for (const warning of guardResult.warnings) {
+        console.log(`   [${warning.rule}] ${warning.message} | 建议: ${warning.fix}`);
+      }
+    }
 
     logger.info('提交渲染请求', {
       shotId: shot.id || shot.shotId,
