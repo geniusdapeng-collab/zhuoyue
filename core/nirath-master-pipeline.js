@@ -2965,6 +2965,37 @@ ${isNirath
     return cleaned;
   }
 
+  /**
+   * v6.6.9.5-fix2: 从台词字符串中提取纯台词内容
+   * 如果台词包含结构化标签（如 SPEAKER; TYPE; EMOTION; TEXT; LIP_SYNC），只提取 TEXT 部分
+   * @param {string} dialogue - 可能包含标签的台词字符串
+   * @returns {string} - 纯台词内容
+   */
+  _extractPureDialogue(dialogue) {
+    if (!dialogue || typeof dialogue !== 'string') return '';
+    
+    // 检测是否包含结构化标签格式（分号分隔或竖杠分隔）
+    // 格式示例："陈卓; 独白; 平静; 大家好，我是陈卓; LIP_SYNC:YES"
+    const hasStructuredFormat = /^(.*?)[;|](.*?)[;|](.*?)[;|](.*?)[;|]/.test(dialogue);
+    
+    if (hasStructuredFormat) {
+      // 按分号或竖杠分割
+      const parts = dialogue.split(/;\s*|\|/);
+      if (parts.length >= 4) {
+        // 格式：SPEAKER; TYPE; EMOTION; TEXT; LIP_SYNC
+        // 取索引 3（TEXT部分），忽略 LIP_SYNC
+        return parts[3].trim();
+      }
+      if (parts.length >= 3) {
+        // 可能是简化格式：SPEAKER; TYPE; TEXT
+        return parts[2].trim();
+      }
+    }
+    
+    // 如果不是结构化格式，直接返回原内容（已经是纯台词）
+    return dialogue.trim();
+  }
+
   // ========== Stage 6: 时长分配(集成ShotDurationAllocatorV2 + DurationCalculator双保险 + P1修复) ==========
   async stageDurationAllocation(script, input) {
     this.log('STAGE-6', '镜头时长分配(ShotDurationAllocatorV2 + DurationCalculator双保险)');
@@ -7898,8 +7929,10 @@ ${isNirath
     ];
 
     // v6.6.9.4-patch13: 添加台词字段(如果dialogue存在)
-    if (dialogue) {
-      fields.push(`【台词】"${dialogue}"`);
+    // v6.6.9.5-fix2: 台词字段只包含纯台词内容，不包含结构化标签
+    const pureDialogue = this._extractPureDialogue(dialogue);
+    if (pureDialogue) {
+      fields.push(`【台词】"${pureDialogue}"`);
     }
 
     // v6.6.9.4-patch13: 添加人物介绍卡片字段(如果角色有定妆照)
