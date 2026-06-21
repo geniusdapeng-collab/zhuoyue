@@ -1219,7 +1219,7 @@ class NirathMasterPipeline {
                   // v6.6.9.4-patch17: PromptForge合并后重新注入定妆照绑定
                   const renderMeta2 = this._buildRenderMetaForShot(existingShot, result.stages);
                   if (renderMeta2.characterRef && !cleanedPrompt.includes('【定妆照】')) {
-                    cleanedPrompt = `【定妆照】${renderMeta2.characterRef} | ` + cleanedPrompt;
+                    cleanedPrompt = `【定妆照】${renderMeta2.characterRef}; ` + cleanedPrompt;
                     cleanedPrompt = this.smartTrim(cleanedPrompt, PROMPT_LENGTH.HARD_MAX);
                   }
 
@@ -1551,6 +1551,19 @@ class NirathMasterPipeline {
 
         const complianceSummary = summarizeCompliance(__finalShots);
         this.log('PromptBridge', `✅ Final output solidified for ${__finalShots.length} shots | avg=${complianceSummary.averageScore}%`);
+      }
+    }
+
+    // v6.6.9.5-fix: 最终全局竖杠过滤 - 所有 shot.prompt 统一清理
+    // 防止任何残留的竖杠进入 Seedance 渲染导致乱码
+    const allShots = result?.stages?.render || result?.stages?.storyboard?.shots || [];
+    for (const shot of allShots) {
+      if (shot.prompt && typeof shot.prompt === 'string') {
+        const before = shot.prompt;
+        shot.prompt = shot.prompt.replace(/\|/g, '; ');
+        if (shot.prompt !== before) {
+          this.log('PIPELINE', `  🛡️ 最终过滤: ${shot.id} 清除竖杠字符`);
+        }
       }
     }
 
@@ -2388,7 +2401,7 @@ class NirathMasterPipeline {
 【角色信息】`);
     parts.push(`- 当前场景必须包含以下角色之一,禁止空角色`);
     Object.values(core || {}).forEach((c) => {
-      parts.push(`- ${c.id || ''} | 名称:${c.name || ''} | 角色:${c.role || ''} | 必须在dialogue中体现`);
+      parts.push(`- ${c.id || ''}; 名称:${c.name || ''}; 角色:${c.role || ''}; 必须在dialogue中体现`);
     });
     parts.push(`
 【角色出场规则】`);
@@ -2498,7 +2511,7 @@ class NirathMasterPipeline {
 【角色信息】`);
     parts.push(`- 当前场景必须包含以下角色之一,禁止空角色`);
     Object.values(core || {}).forEach((c) => {
-      parts.push(`- ${c.id || ''} | 名称:${c.name || ''} | 角色:${c.role || ''} | 必须在dialogue中体现`);
+      parts.push(`- ${c.id || ''}; 名称:${c.name || ''}; 角色:${c.role || ''}; 必须在dialogue中体现`);
     });
     parts.push(`
 【角色出场规则】`);
@@ -2739,7 +2752,7 @@ ${core.narrative?.focus || core.focus || '健康科普内容'}
 ${worldName}${worldDesc}
 
 ## 场景(${scenes.length}镜)(必须严格使用以下场景名称,禁止自由发挥)
-${scenes.map((s, i) => `${i+1}. ${s.id}: ${s.scene} | ${s.type} | ${s.duration}s | 角色:${s.characters?.join(',') || charList}
+${scenes.map((s, i) => `${i+1}. ${s.id}: ${s.scene} | ${s.type} | ${s.duration}s; 角色:${s.characters?.join(',') || charList}
    场景描述: ${s.description || '无'}
    已有台词: ${(s.dialogue || '').substring(0, 40)}...`).join('\n')}
 
@@ -3194,7 +3207,7 @@ ${isNirath
             // v2.0:构建增强版visualPrompt(融入三幕标记+感知锚点)
             let enhancedVisualPrompt = shot.visualPrompt || '';
             if (threeAct) {
-              const actTag = `【${threeAct.actName}(${threeAct.actTimeRange.start}-${threeAct.actTimeRange.end}s) | 感知锚点:${threeAct.sensoryAnchor} | 情感曲线:${threeAct.emotionalArc}】`;
+              const actTag = `【${threeAct.actName}(${threeAct.actTimeRange.start}-${threeAct.actTimeRange.end}s); 感知锚点:${threeAct.sensoryAnchor}; 情感曲线:${threeAct.emotionalArc}】`;
               enhancedVisualPrompt = actTag + '\n' + enhancedVisualPrompt;
             }
             // v2.0:静默标记融入
@@ -3205,13 +3218,13 @@ ${isNirath
             // v2.0:构建增强版narration(融入钻石台词标记)
             let enhancedNarration = shot.narration || '';
             if (isDiamond && beastLine?.text) {
-              enhancedNarration = `【💎钻石台词(Act${beastLine.actNumber}):"${beastLine.text}" | 含义:${beastLine.diamondLayers?.map(l=>l.layer).join('/')}】\n${enhancedNarration}`;
+              enhancedNarration = `【💎钻石台词(Act${beastLine.actNumber}):"${beastLine.text}"; 含义:${beastLine.diamondLayers?.map(l=>l.layer).join('/')}】\n${enhancedNarration}`;
             }
 
             // v2.0:核心意象融入最后一镜(B5/余韵)
             const coreImage = scResult.conceptSeed?.coreImage;
             if (shot.beatId === 'B5' && coreImage) {
-              enhancedVisualPrompt = `【🌸核心意象绽放:${coreImage.image} | ${coreImage.description}】\n${enhancedVisualPrompt}`;
+              enhancedVisualPrompt = `【🌸核心意象绽放:${coreImage.image}; ${coreImage.description}】\n${enhancedVisualPrompt}`;
             }
 
             return {
@@ -3715,7 +3728,7 @@ ${isNirath
       refs.push(`${charName}: ${limitedPaths.join(', ')}`);
     }
 
-    return refs.join(' | ');
+    return refs.join('; ') || 'NONE';
   }
 
   /**
@@ -3759,7 +3772,7 @@ ${isNirath
       characters.push(`${charName}: ${race}, ${uniqueKeywords.join(', ')}`);
     }
 
-    return characters.join(' | ');
+    return characters.join('; ') || 'NONE';
   }
 
   /**
@@ -3801,7 +3814,7 @@ ${isNirath
 
   /**
    * v6.5.62: 构建backgroundSound字段(结构化音效)
-   * 格式:AMBIENT: ... | SPATIAL: ... | INTENSITY: ...
+   * 格式:AMBIENT: ... ; SPATIAL: ... ; INTENSITY: ...
    */
   _buildBackgroundSound(shot) {
     const duration = shot.duration || 0;
@@ -3838,7 +3851,7 @@ ${isNirath
 
     const template = soundTemplates[sceneType] || soundTemplates['building'];
 
-    return `AMBIENT: ${template.ambient} | SPATIAL: ${template.spatial} | INTENSITY: ${template.intensity}`;
+    return `AMBIENT: ${template.ambient}; SPATIAL: ${template.spatial}; INTENSITY: ${template.intensity}`;
   }
 
   /**
@@ -5572,7 +5585,7 @@ ${isNirath
           // v6.2-patch67-fix: 提取前30字符,优先在标点处截断,避免句子不完整
           const coreInfo = this.trimAtPunctuation(narrativeSource, 30);
           if (coreInfo.length > 5) {
-            narrativePurpose = ` | 叙事目的:${coreInfo}`;
+            narrativePurpose = `; 叙事目的:${coreInfo}`;
           }
         }
 
@@ -6304,7 +6317,7 @@ ${isNirath
             for (const marker of lostMarkers) {
               const match = prompt.match(new RegExp(`${marker}[^【]*`));
               if (match && motionEnhanced.length + match[0].length <= PROMPT_LENGTH.HARD_MAX) {
-                motionEnhanced += ` | ${match[0]}`;
+                motionEnhanced += `; ${match[0]}`;
               }
             }
             motionLog.push(`标记恢复+${lostMarkers.length}个`);
@@ -6413,7 +6426,7 @@ ${isNirath
         for (const marker of finalLostMarkers) {
           const match = shot.prompt.match(new RegExp(`${marker}[^【]*`));
           if (match && prompt.length + match[0].length <= PROMPT_LENGTH.HARD_MAX) {
-            prompt += ` | ${match[0]}`;
+            prompt += `; ${match[0]}`;
           }
         }
         if (prompt.length > PROMPT_LENGTH.HARD_MAX) {
@@ -6652,7 +6665,7 @@ ${isNirath
 
       // v6.6.9.4-patch17: 注入定妆照绑定引用
       if (renderMeta.characterRef) {
-        const portraitPrefix = `【定妆照】${renderMeta.characterRef} | `;
+        const portraitPrefix = `【定妆照】${renderMeta.characterRef}; `;
         // 检查是否已存在定妆照字段，避免重复
         if (!prompt.includes('【定妆照】')) {
           prompt = portraitPrefix + prompt;
@@ -7864,7 +7877,7 @@ ${isNirath
           charRefs.push(`${charId}: 无定妆照`);
         }
       }
-      characterCard = charRefs.join(' | ');
+      characterCard = charRefs.join('; ');
     }
 
     // v6.6.9.4-patch14: 内容镜头15个标准字段(新增【情绪】【纵深】【方位】)
@@ -7894,14 +7907,14 @@ ${isNirath
       fields.push(`【人物介绍卡片】${characterCard}`);
     }
 
-    let result = fields.join(' | ');
+    let result = fields.join('; ');
 
     // 保留原始自然语言Prompt的丰富视觉描述,避免信息丢失
     const originalPrompt = (prompt || '').trim();
     if (originalPrompt.length > 0) {
       const remaining = PROMPT_LENGTH.HARD_MAX - result.length - 3; // 预留 " | " 分隔符
       if (remaining > 50) {
-        result += ' | ' + originalPrompt.substring(0, remaining);
+        result += '; ' + originalPrompt.substring(0, remaining);
       }
     }
 
@@ -7998,7 +8011,7 @@ ${isNirath
     }
 
     if (blocks.length > 0) {
-      result = `${blocks.join(' | ')} | ${result}`;
+      result = `${blocks.join('; ')}; ${result}`;
     }
 
     if (result.length > PROMPT_LENGTH.HARD_MAX) {
@@ -8890,7 +8903,7 @@ ${isNirath
     if (environmentAction) parts.push(environmentAction);
     if (cameraAction) parts.push(cameraAction);
 
-    return parts.join(' | ');
+    return parts.join('; ');
   }
 
   /**
@@ -8945,7 +8958,7 @@ ${isNirath
     if (stateDesc) parts.push(`state: ${stateDesc}`);
     if (relationDesc) parts.push(`relation: ${relationDesc}`);
 
-    return parts.join(' | ');
+    return parts.join('; ');
   }
 
   /**
@@ -9062,14 +9075,14 @@ ${isNirath
     }
 
     // 频率避让规则
-    parts.push('避让:L4避1-4kHz|L2侧重2-8kHz|L3侧重<500Hz');
+    parts.push('避让:L4避1-4kHz; L2侧重2-8kHz; L3侧重<500Hz');
 
     // 声画同步标记
     if (shot?.mouthAction || shot?.hasDialogue) {
       parts.push('同步:lip-sync precise alignment, ambient auto-ducking');
     }
 
-    return parts.join(' | ');
+    return parts.join('; ');
   }
 
   /**
@@ -10177,6 +10190,17 @@ ${isNirath
     if (finalLen > PROMPT_LENGTH.HARD_MAX) {
       shot.prompt = this.smartTrim(String(shot.prompt), PROMPT_LENGTH.HARD_MAX);
       fixes.push('final_trim');
+    }
+
+    // v6.6.9.5-fix: 最终竖杠过滤兜底 - 无论源端如何，提交前强制清除所有竖杠
+    // 防止 Seedance 将竖杠解析为特殊语法字符导致口型/语音乱码
+    if (shot.prompt && typeof shot.prompt === 'string') {
+      const rawForDebug = shot.prompt; // 保留原始用于调试
+      shot.prompt = shot.prompt.replace(/\|/g, '; ');
+      // 如果发生了替换，记录日志
+      if (shot.prompt !== rawForDebug) {
+        this.log('STAGE-11', `  🛡️ 竖杠过滤兜底: ${shot.id} 清除竖杠字符`);
+      }
     }
 
     // 构建 renderMeta

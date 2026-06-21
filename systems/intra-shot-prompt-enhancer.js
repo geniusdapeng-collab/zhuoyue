@@ -1850,14 +1850,14 @@ function buildAudioDescription(shot, segments) {
   }
 
   // 频率避让规则（压缩格式）
-  parts.push('避让:L4避1-4kHz|L2侧重2-8kHz|L3侧重<500Hz');
+  parts.push('避让:L4避1-4kHz; L2侧重2-8kHz; L3侧重<500Hz');
 
   // 声画同步标记
   if (shot.mouthAction || shot.hasDialogue) {
     parts.push('同步:嘴型与发音对齐，环境音自动避让');
   }
 
-  return parts.join(' | ');
+  return parts.join('; ');
 }
 
 /**

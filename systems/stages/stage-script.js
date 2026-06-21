@@ -68,12 +68,15 @@ function buildFallbackScript(input) {
   };
 }
 
-// v6.5.62-P1: 构建 dialogue 字段
+// v6.5.62-P1-fix: 构建 dialogue 字段
+// 使用分号替代竖杠，避免Seedance渲染乱码
 function buildDialogue(scene) {
   if (scene.narration || scene.line) {
     const speaker = scene.characters && scene.characters[0] ? scene.characters[0] : '角色';
     const text = scene.narration || scene.line || '';
-    return `${speaker}|独白|平静|${text}|LIP_SYNC:YES`;
+    // 先清理文本中可能已有的分号，避免双重分隔
+    const safeText = text.replace(/; /g, ', ').replace(/;/g, ',');
+    return `${speaker}; 独白; 平静; ${safeText}; LIP_SYNC:YES`;
   }
   return '';
 }

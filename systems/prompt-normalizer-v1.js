@@ -50,7 +50,7 @@ class PromptNormalizer {
         parts.push(`${field}: ${fields[field]}`);
       }
     }
-    return `{${parts.join(' | ')}}`;
+    return `{${parts.join('; ')}}`;
   }
 
   _toText(value) {

@@ -126,7 +126,7 @@ function buildStandardPromptFromShot(shot = {}) {
     parts.push(`【台词】${String(shot.dialogue).trim()}`);
   }
 
-  return parts.join(' | ');
+  return parts.join('; ');
 }
 
 module.exports = {
