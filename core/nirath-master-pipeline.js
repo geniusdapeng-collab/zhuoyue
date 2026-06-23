@@ -5544,11 +5544,14 @@ ${isNirath
             this.log('STAGE-11', `  🔒 风格锁注入: ${shot.id}`);
           }
 
-          // 2. 注入负面约束(仅片头有的,内容镜缺失)
+          // 2. 注入负面约束(仅片头有的,内容镜缺失) — v6.6.10-fix: 使用全局模块，区分片头/内容镜
           if (!prompt.includes('【负面约束】') && !prompt.includes('【全局负面约束】')) {
-            const negativeConstraint = '【负面约束】禁止眼睛出现红色、蓝色、黄色、绿色、紫色、橙色、荧光色、发光色等非自然颜色;禁止红眼、蓝瞳、金瞳、绿眼、紫眼、荧光眼、发光眼、火光眼、霓虹眼;眼睛必须是人眼自然黑色瞳孔,仅允许对面景物倒影在眼中;禁止水晶;禁止重复角色';
+            const isOpeningShot = shot.type === 'opening' || shot.id === 'S00' || shot.scene === '片头';
+            const negativeConstraint = isOpeningShot
+              ? globalNegativePromptInjector.generateForOpeningShot({ maxLength: 250 })
+              : globalNegativePromptInjector.generateForContentShot({ maxLength: 350 });
             prompt += ` ${negativeConstraint}`;
-            this.log('STAGE-11', `  🛡️ 负面约束注入: ${shot.id}`);
+            this.log('STAGE-11', `  🛡️ 负面约束注入: ${shot.id} | ${isOpeningShot ? '片头镜头(允许标题)' : '内容镜头(全面禁止文字)'}`);
           }
 
           // 3. 注入角色约束(仅片头有的,内容镜缺失)
@@ -5688,14 +5691,18 @@ ${isNirath
         prompt = `16:9宽屏电影级镜头。${prompt}`;
 
         // v6.0-patch38: 注入全局负面提示词
-        // v6.2-patch44: 增加P2光照氛围约束(禁止暗黑/夜晚/乌漆嘛黑),maxLength放宽至250
-        const globalNegative = globalNegativePromptInjector.generateCompact({
-          maxLength: 180,
-          sceneType: this.mode === 'nirath' ? 'nature_epic' : 'documentary',
-          hasCharacter: true,
-          isRealistic: true
-        });
+        // v6.6.10-fix: 区分片头/内容镜，片头允许标题，内容镜全面禁止文字
+        const isOpeningShot = shot.type === 'opening' || shot.id === 'S00' || shot.scene === '片头';
+        const globalNegative = isOpeningShot
+          ? globalNegativePromptInjector.generateForOpeningShot({ maxLength: 250 })
+          : globalNegativePromptInjector.generateCompact({
+              maxLength: 180,
+              sceneType: this.mode === 'nirath' ? 'nature_epic' : 'documentary',
+              hasCharacter: true,
+              isRealistic: true
+            });
         prompt += ` ${globalNegative}`;
+        this.log('STAGE-11', `  🛡️ 全局负面约束: ${shot.id} | ${isOpeningShot ? '片头模式' : '标准模式'}`);
 
         // v6.5.29-fix: generic模式使用真实光照约束,不注入Nirath双恒星
         if (this.mode !== 'nirath') {
@@ -7840,15 +7847,18 @@ ${isNirath
       shot
     );
 
+    const isOpeningShot = shot.type === 'opening' || shot.id === 'S00' || shot.scene === '片头';
     const negativeText =
       (prompt.match(/【负面约束】([^【]*)/) || [])[1] ||
       (prompt.match(/【全局负面约束】([^【]*)/) || [])[1] ||
-      this.modules.globalNegativePromptInjector?.generateCompact({
-        sceneType: shot.sceneType || 'nature_epic',
-        hasCharacter: !!(shot.characters && shot.characters.length > 0),
-        isRealistic: true,
-        maxLength: 180
-      }) ||
+      (isOpeningShot
+        ? this.modules.globalNegativePromptInjector?.generateForOpeningShot({ maxLength: 250 })
+        : this.modules.globalNegativePromptInjector?.generateCompact({
+            sceneType: shot.sceneType || 'nature_epic',
+            hasCharacter: !!(shot.characters && shot.characters.length > 0),
+            isRealistic: true,
+            maxLength: 180
+          })) ||
       '';
 
     const renderText =
@@ -7922,7 +7932,7 @@ ${isNirath
       `【风格】${shot.style || (prompt.match(/【风格】([^【]*)/) || [])[1] || '纪录片风格,真实自然'}`,
       `【镜头时间轴】${enhancedCamera || cameraText || '35mm lens, eye level medium shot, steady tracking shot'}`,
       `【照明】${lightingText || '自然光,明暗层次清晰'}`,
-      `【负面约束】${negativeText || 'no text, no anime, no cartoon, no deformed hands, no extra fingers, no watermark'}`,
+      `【负面约束】${negativeText || 'no text, no letters, no words, no labels, no readable text, no anime, no cartoon, no deformed hands, no extra fingers, no watermark'}`,
       `【环境音效】${audioText || '环境音自然,声画同步'}`,
       `【渲染】${renderText}`,
       `【导演】${directorText}`
