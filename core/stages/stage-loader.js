@@ -32,10 +32,21 @@ class StageLoader {
     delete require.cache[require.resolve(filePath)];
     const module = require(filePath);
     
-    // 查找导出的Stage类
-    const StageClass = module[stageName] || Object.values(module).find(v => 
-      typeof v === 'function' && v.prototype instanceof StageBase
-    );
+    // 查找导出的Stage类 - 支持多种命名方式
+    let StageClass = module[stageName];
+    
+    // 如果没找到，尝试驼峰命名转换
+    if (!StageClass) {
+      const camelName = stageName.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+      StageClass = module[camelName];
+    }
+    
+    // 还是没找到，遍历所有导出查找继承StageBase的类
+    if (!StageClass) {
+      StageClass = Object.values(module).find(v => 
+        typeof v === 'function' && v.prototype instanceof StageBase
+      );
+    }
 
     if (!StageClass) {
       throw new Error(`Stage模块 ${stageName} 未导出有效的Stage类`);
