@@ -42,7 +42,9 @@ class StageDurationAllocation extends StageBase {
           if (!text || text.length === 0) {
             this.log('warn', `  ⚠️ 场景${s.id || idx} dialogue为空,使用默认文本`);
           }
-          return {
+          
+          // 🔥 v6.8.3: 商业广告模式 - 提取卖点信息
+          const narration = {
             id: s.id || `S${String(idx + 1).padStart(2, '0')}`,
             text: text || '[无文本]',
             type: type,
@@ -51,11 +53,47 @@ class StageDurationAllocation extends StageBase {
             visualComplexity: s.visualComplexity || 5,
             characters: s.characters || []
           };
+          
+          // 如果场景有卖点信息，注入到时长分配器
+          if (s._sellingPoint) {
+            narration.sellingPointType = s._sellingPoint.type;
+            narration.sellingPointPriority = s._sellingPoint.priority;
+          }
+          
+          return narration;
         });
+
+        // 🔥 v6.8.3: 商业广告模式 - 选择节奏曲线
+        let rhythmCurve = script.narrative?.pace || 'classic';
+        const isCommercial = input.videoType === 'commercial' || input._enrichedSellingPoints;
+        if (isCommercial && rhythmCurve === 'classic') {
+          // 商业广告默认使用肾上腺素式节奏
+          rhythmCurve = 'commercial_adrenaline';
+          this.log('info', `🎬 商业广告模式: 使用肾上腺素式节奏曲线`);
+        }
+
+        // 🔥 v6.8.3: 与时长约束系统联动
+        let finalDuration = baseDuration;
+        if (this.modules.durationConstraint && isCommercial) {
+          // 使用时长约束系统生成合规的总时长
+          const durationPlan = this.modules.durationConstraint.generateDurationPlan(
+            v2Narrations.length,
+            input._enrichedSellingPoints || []
+          );
+          finalDuration = durationPlan.totalDuration;
+          this.log('info', `⏱️ 时长约束系统: 总时长${finalDuration}秒`);
+        } else {
+          const relaxedDuration = Math.round(baseDuration * 1.05);
+          finalDuration = Math.max(baseDuration, Math.min(relaxedDuration, 90));
+        }
+
+        if (finalDuration > baseDuration) {
+          this.log('info', `📏 时长放宽: ${baseDuration}s → ${finalDuration}s (+${Math.round((finalDuration/baseDuration - 1) * 100)}%)`);
+        }
 
         const v2Input = {
           totalDuration: finalDuration,
-          rhythmCurve: script.narrative?.pace || 'classic',
+          rhythmCurve: rhythmCurve,
           narrations: v2Narrations
         };
 
@@ -128,6 +166,10 @@ class StageDurationAllocation extends StageBase {
       const isOverCapacity = charCount > capacity;
       const emotionPhase = scene.emotionPhase || 'neutral';
 
+      // 🔥 v6.8.3: 注入时长回场景，供Stage-11使用
+      scene.duration = clampedDuration;
+      scene._durationAllocated = true;
+      
       allocations.push({
         sceneId: scene.id,
         narration,
@@ -140,7 +182,10 @@ class StageDurationAllocation extends StageBase {
         v2Allocated: !!v2Allocations,
         optimizationLevel,
         isOverCapacity,
-        capacity
+        capacity,
+        // 🔥 v6.8.3: 商业广告信息
+        sellingPointType: scene._sellingPoint?.type,
+        adPhase: scene._adPhase
       });
 
       if (isOverCapacity) {
@@ -148,7 +193,34 @@ class StageDurationAllocation extends StageBase {
       }
     }
 
+    // 🔥 v6.8.3: 与时长约束系统联动验证
+    if (this.modules.durationConstraint && input._enrichedSellingPoints) {
+      const shotDurations = allocations.map(a => a.duration);
+      const validation = this.modules.durationConstraint.validatePlan({
+        totalDuration: allocations.reduce((sum, a) => sum + a.duration, 0),
+        shotCount: allocations.length,
+        shotDurations
+      });
+      
+      if (!validation.valid) {
+        this.log('warn', `⚠️ 时长约束验证失败: ${validation.issues.join(', ')}`);
+      } else {
+        this.log('info', `✅ 时长约束验证通过: ${validation.totalDuration}秒`);
+      }
+    }
+
     this.log('info', `✅ 时长分配 | 镜头数: ${allocations.length} | V2分配: ${allocations.filter(a => a.v2Allocated).length}/${allocations.length} | 超长: ${allocations.filter(a => a.isOverCapacity).length}/${allocations.length}`);
+    
+    // 🔥 v6.8.3: 商业广告模式额外日志
+    if (input._enrichedSellingPoints) {
+      const phaseBreakdown = {};
+      allocations.forEach(a => {
+        const phase = a.adPhase || 'unknown';
+        phaseBreakdown[phase] = (phaseBreakdown[phase] || 0) + a.duration;
+      });
+      this.log('info', `📊 广告阶段时长分布: ${Object.entries(phaseBreakdown).map(([k,v]) => `${k}:${v}s`).join(' | ')}`);
+    }
+    
     return allocations;
   }
 }

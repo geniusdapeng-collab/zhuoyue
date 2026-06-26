@@ -1,19 +1,20 @@
 /**
- * 【系统级】镜头时长分配 Agent v2
- * 三阶段流水线：分析(analyze) → 分配(allocate) → 优化(optimize)
+ * 【系统级】镜头时长分配 Agent v2 - 商业广告大片升级版
+ * v6.8.3: 针对商业广告大片深度定制
  * 
- * 核心升级（v2 vs v1）：
- * 1. 对象重要性驱动：importance(1-10)独立于字数决定时长
- * 2. 3-12秒弹性区间：替代硬编码3-5秒，按角色类型自适应
- * 3. 双池模型：语音基线池(60%) + 弹性加成池(40%)
- * 4. 重要性系数：critical 2.0x / high 1.6x / medium 1.0x / low 0.6x
- * 5. 三级自优化：L1压缩→L2精简建议→L3强制降级（不直接报错）
- * 6. 节奏曲线：起承转合/渐进式/波浪式/倒金字塔
+ * 核心升级（商业广告模式）：
+ * 1. 五段式广告角色体系：Hook/Problem/Solution/Proof/CTA 差异化时长策略
+ * 2. 商业广告节奏曲线：肾上腺素式/悬念式/对比式/渐进式
+ * 3. 卖点驱动时长分配：高优先级卖点自动获得更多时长
+ * 4. 与时长约束系统联动：25-35秒总时长，2-10秒单镜头
+ * 5. 与卖点深度映射联动：自动读取卖点类型和情绪曲线
+ * 
+ * 三阶段流水线：分析(analyze) → 分配(allocate) → 优化(optimize)
  */
 
 class ShotDurationAllocatorV2 {
   constructor(config = {}) {
-    // 角色类型配置（时长基线 + 默认重要性 + 视觉复杂度）
+    // 基础角色配置（兼容教育/通用模式）
     this.roleConfig = {
       'opening':     { min: 6, max: 12, baseImportance: 5, visualComplexity: 2, desc: '开场白' },
       'definition':  { min: 5, max: 10, baseImportance: 8, visualComplexity: 5, desc: '定义/概念' },
@@ -23,14 +24,21 @@ class ShotDurationAllocatorV2 {
       'transition':  { min: 3, max: 6,  baseImportance: 3, visualComplexity: 2, desc: '过渡/衔接' },
       'highlight':   { min: 4, max: 8,  baseImportance: 7, visualComplexity: 4, desc: '强调/重点' },
       'closing':     { min: 5, max: 10, baseImportance: 4, visualComplexity: 2, desc: '结尾/总结' },
-      // 🔥 v6.2-patch48-fix: 新增StoryCraft beatName角色
       'discovery':   { min: 5, max: 12, baseImportance: 6, visualComplexity: 5, desc: '发现/钩子' },
       'twist':       { min: 6, max: 12, baseImportance: 9, visualComplexity: 6, desc: '反转/转折' },
       'reveal':      { min: 6, max: 12, baseImportance: 8, visualComplexity: 6, desc: '揭露/真相' },
-      'resolve':     { min: 5, max: 10, baseImportance: 7, visualComplexity: 4, desc: '解决/余韵' }
+      'resolve':     { min: 5, max: 10, baseImportance: 7, visualComplexity: 4, desc: '解决/余韵' },
+      // 🔥 v6.8.3: 商业广告五段式角色
+      'hook':        { min: 2, max: 5,  baseImportance: 9, visualComplexity: 5, desc: '广告钩子' },
+      'problem':     { min: 3, max: 6,  baseImportance: 7, visualComplexity: 4, desc: '痛点共鸣' },
+      'solution':    { min: 4, max: 10, baseImportance: 9, visualComplexity: 7, desc: '解决方案' },
+      'proof':       { min: 3, max: 8,  baseImportance: 8, visualComplexity: 6, desc: '信任证明' },
+      'cta':         { min: 2, max: 5,  baseImportance: 10, visualComplexity: 4, desc: '行动号召' },
+      'product_hero':{ min: 3, max: 8,  baseImportance: 9, visualComplexity: 8, desc: '产品Hero' },
+      'brand_reveal':{ min: 2, max: 4,  baseImportance: 7, visualComplexity: 3, desc: '品牌展示' }
     };
 
-    // 类型映射（兼容现有type字段 + StoryCraft beatName）
+    // 类型映射（兼容现有type字段 + StoryCraft beatName + 商业广告五段式）
     this.typeMapping = {
       'host': 'opening',
       'explanation': 'explanation',
@@ -42,7 +50,7 @@ class ShotDurationAllocatorV2 {
       'demonstration': 'demonstration',
       'highlight': 'highlight',
       'transition': 'transition',
-      // 🔥 v1.1-fix: StoryCraft beatName映射
+      // StoryCraft beatName映射
       '钩子': 'discovery',
       'hook': 'discovery',
       '深入': 'explanation',
@@ -54,7 +62,22 @@ class ShotDurationAllocatorV2 {
       'climax': 'highlight',
       '余韵': 'closing',
       'resonance': 'closing',
-      'resolution': 'closing'
+      'resolution': 'closing',
+      // 🔥 v6.8.3: 商业广告五段式映射
+      'hook': 'hook',
+      'problem': 'problem',
+      'solution': 'solution',
+      'proof': 'proof',
+      'cta': 'cta',
+      'product_hero': 'product_hero',
+      'brand_reveal': 'brand_reveal',
+      '情感钩子': 'hook',
+      '痛点': 'problem',
+      '功能展示': 'solution',
+      '信任背书': 'proof',
+      '行动号召': 'cta',
+      '产品展示': 'product_hero',
+      '品牌展示': 'brand_reveal'
     };
 
     this.config = {
@@ -85,6 +108,12 @@ class ShotDurationAllocatorV2 {
       },
       // 节奏曲线模板
       rhythmCurves: {
+        // 🔥 v6.8.3: 商业广告节奏曲线模板
+        'commercial_adrenaline': { name: '肾上腺素式', pattern: [1.4, 0.8, 1.2, 1.0, 1.3, 0.7, 0.6] },
+        'commercial_suspense': { name: '悬念式', pattern: [0.8, 1.3, 1.1, 1.4, 0.9, 1.2, 0.5] },
+        'commercial_contrast': { name: '对比式', pattern: [1.2, 0.7, 1.3, 0.8, 1.1, 1.0, 0.9] },
+        'commercial_progressive': { name: '渐进式', pattern: [0.9, 1.0, 1.1, 1.2, 1.3, 1.1, 0.8] },
+        // 通用节奏曲线
         'classic': { name: '起承转合', pattern: [1.2, 0.9, 1.0, 1.3, 0.8] },
         'progressive': { name: '渐进式', pattern: [0.9, 1.0, 1.1, 1.2, 1.3] },
         'wave': { name: '波浪式', pattern: [1.2, 0.8, 1.2, 0.8, 1.0] },
@@ -196,6 +225,23 @@ class ShotDurationAllocatorV2 {
       // 视觉复杂度（用户提供 > 角色默认）
       const visualComplexity = n.visualComplexity || roleCfg.visualComplexity;
 
+      // 🔥 v6.8.3: 卖点类型权重（商业广告模式）
+      // function/usp/tech > visual/price/rational > social_proof/emotion
+      let sellingPointWeight = 1.0;
+      if (n.sellingPointType) {
+        const weightMap = {
+          'function': 3.0, 'usp': 3.0, 'tech': 3.0,    // 高权重：功能/USP/技术
+          'visual': 2.0, 'price': 2.0, 'rational': 2.0, // 中权重：视觉/价格/理性
+          'social_proof': 1.0, 'emotion': 1.0           // 低权重：社交证明/情感
+        };
+        sellingPointWeight = weightMap[n.sellingPointType] || 1.0;
+      }
+      // 如果提供了卖点优先级，也纳入权重
+      if (n.sellingPointPriority !== undefined) {
+        // priority 1=最高 → 额外加成最高50%
+        sellingPointWeight *= (1 + (4 - n.sellingPointPriority) * 0.15);
+      }
+
       // 语音基线（极限语速计算，只保证"说得完"）
       const voiceBaseline = Math.max(
         Math.ceil((charCount / this.config.limitSpeed) + this.config.bufferSeconds),
@@ -216,6 +262,9 @@ class ShotDurationAllocatorV2 {
         visualComplexity,
         voiceBaseline,
         comfortDuration,
+        sellingPointWeight,  // 🔥 v6.8.3: 卖点权重
+        sellingPointType: n.sellingPointType,  // 🔥 v6.8.3: 卖点类型
+        sellingPointPriority: n.sellingPointPriority,  // 🔥 v6.8.3: 卖点优先级
         // 时长范围建议
         suggestedMin: roleCfg.min,
         suggestedMax: roleCfg.max
@@ -239,8 +288,14 @@ class ShotDurationAllocatorV2 {
       // 视觉复杂度加成
       const visualBonus = n.visualComplexity * 0.3;
       
-      // 初步时长 = 语音基线 × 重要性系数 + 视觉加成
+      // 初步时长 = 语音基线 × 重要性系数 + 视觉加成 + 卖点权重加成
       let rawDuration = n.voiceBaseline * importanceCoeff + visualBonus;
+      
+      // 🔥 v6.8.3: 卖点权重加成（商业广告模式）
+      if (n.sellingPointWeight && n.sellingPointWeight > 1.0) {
+        const sellingPointBonus = (n.sellingPointWeight - 1.0) * n.voiceBaseline * 0.5;
+        rawDuration += sellingPointBonus;
+      }
       
       // 裁剪到角色建议范围
       rawDuration = Math.max(n.suggestedMin, Math.min(n.suggestedMax, rawDuration));
@@ -252,6 +307,7 @@ class ShotDurationAllocatorV2 {
         ...n,
         importanceCoeff: importanceCoeff.toFixed(2),
         visualBonus: visualBonus.toFixed(1),
+        sellingPointBonus: n.sellingPointWeight > 1.0 ? ((n.sellingPointWeight - 1.0) * n.voiceBaseline * 0.5).toFixed(1) : 0,
         rawDuration: Math.round(rawDuration)
       };
     });
@@ -674,9 +730,10 @@ class ShotDurationAllocatorV2 {
    * 打印分析结果
    */
   printAnalysis(analyzed) {
-    console.log('   角色识别 + 重要性评估:');
+    console.log('   角色识别 + 重要性评估 + 卖点权重:');
     analyzed.forEach(n => {
-      console.log(`   ${n.id}: ${n.roleDesc} | ${n.charCount}字 | importance=${n.importance}(${n.importanceLevel}) | visual=${n.visualComplexity} | 语音基线=${n.voiceBaseline}秒`);
+      const spInfo = n.sellingPointType ? ` | 卖点:${n.sellingPointType}(权重×${n.sellingPointWeight.toFixed(1)})` : '';
+      console.log(`   ${n.id}: ${n.roleDesc} | ${n.charCount}字 | importance=${n.importance}(${n.importanceLevel}) | visual=${n.visualComplexity}${spInfo} | 语音基线=${n.voiceBaseline}秒`);
     });
   }
 
@@ -692,9 +749,10 @@ class ShotDurationAllocatorV2 {
     
     console.log('   初步时长分配:');
     allocation.shots.forEach(shot => {
-      const logs = shot.optimizationLogs.map(l => 
-        `${l.id}(imp=${l.importance},压缩=${l.compressionRate || '无'},视觉+${l.visualBonus || 0})`
-      ).join(', ');
+      const logs = shot.optimizationLogs.map(l => {
+        const spBonus = l.sellingPointBonus > 0 ? `,卖点+${l.sellingPointBonus}秒` : '';
+        return `${l.id}(imp=${l.importance},压缩=${l.compressionRate || '无'},视觉+${l.visualBonus || 0}${spBonus})`;
+      }).join(', ');
       console.log(`   ${shot.id}: ${shot.duration}秒 | ${shot.type} | ${logs}`);
     });
   }
