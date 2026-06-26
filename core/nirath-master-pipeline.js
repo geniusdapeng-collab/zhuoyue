@@ -435,6 +435,10 @@ class NirathMasterPipeline {
         const { ResolutionSpec } = require('../systems/resolution-spec');
         const { CommercialMode } = require('../systems/commercial-mode');
         const { PremiumEnhancer } = require('../systems/premium-enhancer');
+        const { CinematicCameraSystem } = require('../systems/cinematic-camera');
+        const { VFXSystem } = require('../systems/vfx-system');
+        const { AudioEngine } = require('../systems/audio-engine');
+        const { QualityGatePro } = require('../systems/quality-gate-pro');
         
         this._modules.resolutionSpec = new ResolutionSpec(input?.resolution || '4K-UHD');
         this._modules.commercialMode = new CommercialMode({
@@ -446,8 +450,12 @@ class NirathMasterPipeline {
           platform: input?.platform || 'tv'
         });
         this._modules.premiumEnhancer = new PremiumEnhancer({ enabled: true, intensity: 'cinematic' });
+        this._modules.cinematicCamera = new CinematicCameraSystem({ enabled: true, style: 'commercial' });
+        this._modules.vfxSystem = new VFXSystem({ enabled: true, intensity: 'cinematic' });
+        this._modules.audioEngine = new AudioEngine({ enabled: true, style: 'commercial' });
+        this._modules.qualityGatePro = new QualityGatePro({ enabled: true, strictMode: true });
         
-        this.log('INIT', '✅ 商业广告片系统已加载 | 4K画质 | 影视级质感');
+        this.log('INIT', '✅ 商业广告片系统已加载 | 4K画质 | 影视级质感 | 专业运镜 | 后期特效 | 音频系统 | 质量管控');
       } catch (e) {
         this.log('INIT', `⚠️ 商业广告片系统加载失败: ${e.message}`);
       }
@@ -6884,11 +6892,31 @@ ${isNirath
             commercialPrompt = this.modules.premiumEnhancer.enhance(shot, commercialPrompt);
           }
           
+          // v6.7.0: 注入专业运镜
+          if (this.modules.cinematicCamera) {
+            commercialPrompt = this.modules.cinematicCamera.enhance(shot, commercialPrompt);
+          }
+          
+          // v6.7.0: 注入后期特效
+          if (this.modules.vfxSystem) {
+            commercialPrompt = this.modules.vfxSystem.enhance(shot, commercialPrompt);
+          }
+          
+          // v6.7.0: 注入音频设计
+          if (this.modules.audioEngine) {
+            const audioPrompt = this.modules.audioEngine.generateAudioPrompt(shot, {
+              music: this.modules.audioEngine.selectMusic([shot], { style: 'commercial' })
+            });
+            if (audioPrompt) {
+              commercialPrompt += ` | ${audioPrompt}`;
+            }
+          }
+          
           if (commercialPrompt !== shot.prompt) {
             const originalLength = shot.prompt.length;
             shot.prompt = commercialPrompt;
             shot._commercialEnhanced = true;
-            this.log('STAGE-11', `  🎯 商业广告增强: ${shot.id} | +${commercialPrompt.length - originalLength}字符 | 4K质感`);
+            this.log('STAGE-11', `  🎯 商业广告增强: ${shot.id} | +${commercialPrompt.length - originalLength}字符 | 4K质感+运镜+特效+音频`);
           }
         } catch (e) {
           this.log('STAGE-11', `  ⚠️ 商业广告增强失败: ${e.message}`);
@@ -6918,6 +6946,27 @@ ${isNirath
     const standardizedPrompts = applyGlobalPromptStandard(prompts, stages);
     const refInjected = standardizedPrompts.filter(p => p.referenceImages && p.referenceImages.length > 0).length;
     this.log('STAGE-11', `🎯 全局标准化完成 | ${refInjected}/${standardizedPrompts.length} 镜头有定妆照`);
+
+    // 🔥 v6.7.0: 商业广告片质量管控
+    if (this.modules.qualityGatePro) {
+      try {
+        const qualityCheck = this.modules.qualityGatePro.check(standardizedPrompts, {
+          brandName: stages.input?.brand?.name,
+          brandColor: stages.input?.brand?.color,
+          platform: stages.input?.platform || 'tv',
+          aspectRatio: '16:9'
+        });
+        
+        const report = this.modules.qualityGatePro.generateReport(qualityCheck);
+        this.log('STAGE-16', '\n' + report);
+        
+        if (!qualityCheck.passed && this.modules.qualityGatePro.strictMode) {
+          this.log('STAGE-16', '⚠️ 质量检查未通过，请修复上述问题');
+        }
+      } catch (e) {
+        this.log('STAGE-16', `⚠️ 质量管控检查失败: ${e.message}`);
+      }
+    }
 
     return standardizedPrompts;
   }
