@@ -1,6 +1,6 @@
 /**
  * STAGE-6: Shot Duration Allocation
- * 镜头时长分配 - ShotDurationAllocatorV2 + DurationCalculator双保险
+ * 镜头时长分配 - ShotDurationAllocatorV3 12维度 + DurationCalculator双保险
  * 自动提取自 nirath-master-pipeline.js
  */
 
@@ -13,12 +13,12 @@ class StageDurationAllocation extends StageBase {
   }
 
   async execute(script, input = {}) {
-    this.log('info', 'STAGE-6: 镜头时长分配(ShotDurationAllocatorV2 + DurationCalculator双保险)');
+    this.log('info', 'STAGE-6: 镜头时长分配(ShotDurationAllocatorV3 12维度 + DurationCalculator双保险)');
 
     const allocations = [];
     const totalDuration = script.narrative?.totalDuration || input.targetDuration || 15;
 
-    // P0修复#3 + P1修复#14-22:集成ShotDurationAllocatorV2
+    // P0修复#3 + P1修复#14-22:集成ShotDurationAllocatorV3(12维度/重要性驱动/弹性区间/双池模型)
     let v2Allocations = null;
     let optimizationLevel = 'L0';
     try {
@@ -97,18 +97,18 @@ class StageDurationAllocation extends StageBase {
           narrations: v2Narrations
         };
 
-        this.log('info', `📤 ShotDurationAllocatorV2输入: ${v2Narrations.length}句dialogue | 总预算${finalDuration}s`);
+        this.log('info', `📤 ShotDurationAllocatorV3输入: ${v2Narrations.length}句dialogue | 总预算${finalDuration}s`);
         v2Allocations = this.modules.shotDurationAllocator.allocate(v2Input);
         optimizationLevel = v2Allocations?.optimizationLevel || 'L0';
 
         if (!v2Allocations || !Array.isArray(v2Allocations.shots)) {
-          throw new Error('ShotDurationAllocatorV2返回结果无效: shots数组缺失');
+          throw new Error('ShotDurationAllocatorV3返回结果无效: shots数组缺失');
         }
 
-        this.log('info', `✅ ShotDurationAllocatorV2已调用 | 优化级别: ${optimizationLevel} | 返回${v2Allocations.shots.length}镜`);
+        this.log('info', `✅ ShotDurationAllocatorV3已调用 | 优化级别: ${optimizationLevel} | 返回${v2Allocations.shots.length}镜`);
       }
     } catch (e) {
-      this.log('warn', `⚠️ ShotDurationAllocatorV2调用失败: ${e.message}`);
+      this.log('warn', `⚠️ ShotDurationAllocatorV3调用失败: ${e.message}`);
     }
 
     // L2/L3降级处理

@@ -2606,14 +2606,14 @@ ${isNirath
     };
   }
 
-  // ========== Stage 6: 时长分配(集成ShotDurationAllocatorV2 + DurationCalculator双保险 + P1修复) ==========
+  // ========== Stage 6: 时长分配(集成ShotDurationAllocatorV3 12维度 + DurationCalculator双保险 + P1修复) ==========
   async stageDurationAllocation(script, input) {
-    this.log('STAGE-6', '镜头时长分配(ShotDurationAllocatorV2 + DurationCalculator双保险)');
+    this.log('STAGE-6', '镜头时长分配(ShotDurationAllocatorV3 12维度 + DurationCalculator双保险)');
 
     const allocations = [];
     const totalDuration = script.narrative?.totalDuration || (input && input.targetDuration) || 15;
 
-    // P0修复#3 + P1修复#14-22:集成ShotDurationAllocatorV2(重要性驱动/弹性区间/双池模型)
+    // P0修复#3 + P1修复#14-22:集成ShotDurationAllocatorV3(12维度/重要性驱动/弹性区间/双池模型)
     let v2Allocations = null;
     let optimizationLevel = 'L0';
     try {
@@ -2629,7 +2629,7 @@ ${isNirath
         }
 
         // 构造v2输入:包含importance和visualComplexity
-        // 🔥 v6.2-patch49-fix: 防御性校验,防止空数据导致ShotDurationAllocatorV2报错
+        // 🔥 v6.2-patch49-fix: 防御性校验,防止空数据导致ShotDurationAllocatorV3报错
         const safeScenes = Array.isArray(script.scenes) ? script.scenes : [];
         if (safeScenes.length === 0) {
           throw new Error('script.scenes为空数组,无法进行时⻓分配');
@@ -2656,21 +2656,21 @@ ${isNirath
           rhythmCurve: script.narrative?.pace || 'classic',
           narrations: v2Narrations
         };
-        this.log('STAGE-6', `📤 ShotDurationAllocatorV2输入: ${v2Narrations.length}句dialogue | 总预算${finalDuration}s`);
+        this.log('STAGE-6', `📤 ShotDurationAllocatorV3输入: ${v2Narrations.length}句dialogue | 总预算${finalDuration}s`);
         v2Allocations = this.modules.shotDurationAllocator.allocate(v2Input);
         optimizationLevel = v2Allocations?.optimizationLevel || 'L0';
 
         // 校验返回结果完整性
         if (!v2Allocations || !Array.isArray(v2Allocations.shots)) {
-          throw new Error('ShotDurationAllocatorV2返回结果无效: shots数组缺失');
+          throw new Error('ShotDurationAllocatorV3返回结果无效: shots数组缺失');
         }
         if (v2Allocations.shots.length !== safeScenes.length) {
           this.log('STAGE-6', `  ⚠️ 分配结果镜数不匹配: 输入${safeScenes.length}镜 → 输出${v2Allocations.shots.length}镜`);
         }
-        this.log('STAGE-6', `✅ ShotDurationAllocatorV2已调用 | 优化级别: ${optimizationLevel} | 总时长预算: ${finalDuration}s | 返回${v2Allocations.shots.length}镜`);
+        this.log('STAGE-6', `✅ ShotDurationAllocatorV3已调用 | 优化级别: ${optimizationLevel} | 总时长预算: ${finalDuration}s | 返回${v2Allocations.shots.length}镜`);
       }
     } catch (e) {
-      this.log('STAGE-6', `⚠️ ShotDurationAllocatorV2调用失败: ${e.message}`);
+      this.log('STAGE-6', `⚠️ ShotDurationAllocatorV3调用失败: ${e.message}`);
     }
 
     // P1修复#34:L2降级处理避免0镜产出

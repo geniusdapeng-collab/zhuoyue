@@ -6,7 +6,7 @@
  * 自动精简narration，保留核心语义，删除冗余修饰。
  * 解决「narration字数踩线/超限」的系统性问题。
  *
- * 挂载点：ShotDurationAllocatorV2 Stage 2（时长分配）中
+ * 挂载点：ShotDurationAllocatorV3 Stage 2（时长分配）中
  *
  * 核心逻辑：
  * 1. 计算每镜narration字数与时长容量的匹配度

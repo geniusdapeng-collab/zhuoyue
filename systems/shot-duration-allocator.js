@@ -9,10 +9,19 @@
  * 4. 与时长约束系统联动：25-35秒总时长，2-10秒单镜头
  * 5. 与卖点深度映射联动：自动读取卖点类型和情绪曲线
  * 
+ * 🔥 v6.8.4: 12维度智能分配引擎
+ * 6. 台词/对话密度：台词越多，时间越长
+ * 7. 动作复杂度：动作越复杂，时间越长
+ * 8. 情绪转折幅度：转折越大，时间越长
+ * 9. 视觉信息量：信息越多，时间越长
+ * 10. 叙事节奏点：高潮延长，铺垫压缩
+ * 11. 产品展示深度：展示越深，时间越长
+ * 12. 场景切换复杂度：转场越复杂，时间越长
+ * 
  * 三阶段流水线：分析(analyze) → 分配(allocate) → 优化(optimize)
  */
 
-class ShotDurationAllocatorV2 {
+class ShotDurationAllocatorV3 {
   constructor(config = {}) {
     // 基础角色配置（兼容教育/通用模式）
     this.roleConfig = {
@@ -119,6 +128,32 @@ class ShotDurationAllocatorV2 {
         'wave': { name: '波浪式', pattern: [1.2, 0.8, 1.2, 0.8, 1.0] },
         'inverted': { name: '倒金字塔', pattern: [1.4, 1.1, 0.9, 0.8, 0.7] }
       },
+      // 🔥 v6.8.4: 12维度权重配置（可配置化）
+      dimensionWeights: {
+        // 基础层权重
+        voiceBaseline: 1.0,        // 语音基线（必保）
+        importance: 0.8,           // 重要性
+        // 复杂度层权重
+        visualComplexity: 0.6,     // 视觉复杂度
+        actionComplexity: 0.7,     // 动作复杂度
+        visualDensity: 0.5,        // 视觉信息量
+        // 叙事层权重
+        emotionShift: 0.6,         // 情绪转折
+        narrativeBeat: 0.7,        // 叙事节奏点
+        productShowcase: 0.8,      // 产品展示深度
+        // 技术层权重
+        transitionType: 0.3,       // 转场复杂度
+        dialogueDensity: 0.9,      // 台词密度（高权重！）
+        // 商业层权重
+        sellingPoint: 0.8          // 卖点权重
+      },
+      // 动态权重调整（按视频类型）
+      weightAdjustments: {
+        commercial: { sellingPoint: 1.3, productShowcase: 1.2, visualDensity: 1.2, dialogueDensity: 1.1 },
+        educational: { dialogueDensity: 1.2, visualComplexity: 1.1, emotionShift: 0.7, narrativeBeat: 0.9 },
+        drama: { narrativeBeat: 1.2, emotionShift: 1.2, actionComplexity: 1.1 },
+        vlog: { transitionType: 1.2, actionComplexity: 1.1, productShowcase: 0.7 }
+      },
       ...config
     };
   }
@@ -129,15 +164,27 @@ class ShotDurationAllocatorV2 {
   allocate(script) {
     const { totalDuration, narrations, rhythmCurve = 'classic' } = script;
     
-    console.log('⏱️  镜头时长分配 v2 开始');
+    console.log('⏱️  镜头时长分配 v3 开始');
     console.log('='.repeat(60));
     console.log(`总时长预算: ${totalDuration}秒`);
     console.log(`narration数量: ${narrations.length}句`);
     console.log(`节奏曲线: ${this.config.rhythmCurves[rhythmCurve]?.name || '经典'}`);
     console.log('='.repeat(60));
+    
+    // 🔥 v6.8.4: 检测视频类型并调整权重
+    const videoType = script.videoType || 'general';
+    if (this.config.weightAdjustments[videoType]) {
+      const adjustments = this.config.weightAdjustments[videoType];
+      for (const [key, multiplier] of Object.entries(adjustments)) {
+        if (this.config.dimensionWeights[key] !== undefined) {
+          this.config.dimensionWeights[key] *= multiplier;
+        }
+      }
+      console.log(`🔧 视频类型: ${videoType} | 权重已动态调整`);
+    }
 
     // ========== Stage 1: 内容分析 ==========
-    console.log('\n📊 Stage 1: 内容分析...');
+    console.log('\n📊 Stage 1: 12维度内容分析...');
     const analyzed = this.analyze(narrations);
     this.printAnalysis(analyzed);
 
@@ -252,6 +299,28 @@ class ShotDurationAllocatorV2 {
       const comfortSpeed = this.config.speedMap[role] || this.config.speedMap.default;
       const comfortDuration = Math.ceil((charCount / comfortSpeed) + this.config.bufferSeconds);
 
+      // 🔥 v6.8.4: 新7维度计算
+      // 维度6: 台词/对话密度
+      const dialogueDensity = this.calculateDialogueDensity(n.text, n.charCount);
+      
+      // 维度7: 动作复杂度
+      const actionComplexity = this.calculateActionComplexity(n.actionDescription || n.text);
+      
+      // 维度8: 情绪转折幅度
+      const emotionShift = this.calculateEmotionShift(n.emotionStart, n.emotionEnd, n.emotionCurve);
+      
+      // 维度9: 视觉信息量
+      const visualDensity = this.calculateVisualDensity(n.visualElements || n.text);
+      
+      // 维度10: 叙事节奏点
+      const narrativeBeat = this.calculateNarrativeBeat(n.narrativeBeat || n.type, index, narrations.length);
+      
+      // 维度11: 产品展示深度
+      const productShowcase = this.calculateProductShowcase(n.showcaseType || n.productDescription);
+      
+      // 维度12: 场景切换复杂度
+      const transitionType = this.calculateTransitionType(n.transitionType || (index === 0 ? 'none' : 'cut'));
+
       return {
         ...n,
         charCount,
@@ -265,6 +334,14 @@ class ShotDurationAllocatorV2 {
         sellingPointWeight,  // 🔥 v6.8.3: 卖点权重
         sellingPointType: n.sellingPointType,  // 🔥 v6.8.3: 卖点类型
         sellingPointPriority: n.sellingPointPriority,  // 🔥 v6.8.3: 卖点优先级
+        // 🔥 v6.8.4: 新7维度
+        dialogueDensity,
+        actionComplexity,
+        emotionShift,
+        visualDensity,
+        narrativeBeat,
+        productShowcase,
+        transitionType,
         // 时长范围建议
         suggestedMin: roleCfg.min,
         suggestedMax: roleCfg.max
@@ -297,6 +374,37 @@ class ShotDurationAllocatorV2 {
         rawDuration += sellingPointBonus;
       }
       
+      // 🔥 v6.8.4: 新7维度加成（多维度融合）
+      const dw = this.config.dimensionWeights; // dimensionWeights缩写
+      
+      // 维度6: 台词密度加成
+      const dialogueBonus = n.dialogueDensity * n.voiceBaseline * dw.dialogueDensity;
+      rawDuration += dialogueBonus;
+      
+      // 维度7: 动作复杂度加成
+      const actionBonus = n.actionComplexity * dw.actionComplexity;
+      rawDuration += actionBonus;
+      
+      // 维度8: 情绪转折加成
+      const emotionBonus = n.emotionShift * 1.5 * dw.emotionShift;
+      rawDuration += emotionBonus;
+      
+      // 维度9: 视觉信息量加成
+      const visualDensityBonus = n.visualDensity * 0.8 * dw.visualDensity;
+      rawDuration += visualDensityBonus;
+      
+      // 维度10: 叙事节奏点加成
+      const narrativeBonus = (n.narrativeBeat - 1.0) * n.voiceBaseline * dw.narrativeBeat;
+      rawDuration += narrativeBonus;
+      
+      // 维度11: 产品展示深度加成
+      const showcaseBonus = n.productShowcase * 1.0 * dw.productShowcase;
+      rawDuration += showcaseBonus;
+      
+      // 维度12: 转场复杂度加成
+      const transitionBonus = n.transitionType * dw.transitionType;
+      rawDuration += transitionBonus;
+      
       // 裁剪到角色建议范围
       rawDuration = Math.max(n.suggestedMin, Math.min(n.suggestedMax, rawDuration));
       
@@ -308,6 +416,14 @@ class ShotDurationAllocatorV2 {
         importanceCoeff: importanceCoeff.toFixed(2),
         visualBonus: visualBonus.toFixed(1),
         sellingPointBonus: n.sellingPointWeight > 1.0 ? ((n.sellingPointWeight - 1.0) * n.voiceBaseline * 0.5).toFixed(1) : 0,
+        // 🔥 v6.8.4: 新维度加成日志
+        dialogueBonus: dialogueBonus.toFixed(1),
+        actionBonus: actionBonus.toFixed(1),
+        emotionBonus: emotionBonus.toFixed(1),
+        visualDensityBonus: visualDensityBonus.toFixed(1),
+        narrativeBonus: narrativeBonus.toFixed(1),
+        showcaseBonus: showcaseBonus.toFixed(1),
+        transitionBonus: transitionBonus.toFixed(1),
         rawDuration: Math.round(rawDuration)
       };
     });
@@ -730,10 +846,12 @@ class ShotDurationAllocatorV2 {
    * 打印分析结果
    */
   printAnalysis(analyzed) {
-    console.log('   角色识别 + 重要性评估 + 卖点权重:');
+    console.log('   12维度分析结果:');
+    console.log('   角色 | 字数 | 重要性 | 视觉复杂度 | 台词密度 | 动作复杂度 | 情绪转折 | 视觉信息 | 叙事节奏 | 展示深度 | 转场复杂度 | 卖点权重 | 语音基线');
+    console.log('   ' + '-'.repeat(120));
     analyzed.forEach(n => {
-      const spInfo = n.sellingPointType ? ` | 卖点:${n.sellingPointType}(权重×${n.sellingPointWeight.toFixed(1)})` : '';
-      console.log(`   ${n.id}: ${n.roleDesc} | ${n.charCount}字 | importance=${n.importance}(${n.importanceLevel}) | visual=${n.visualComplexity}${spInfo} | 语音基线=${n.voiceBaseline}秒`);
+      const spInfo = n.sellingPointType ? ` | 卖点:${n.sellingPointType}(×${n.sellingPointWeight.toFixed(1)})` : '';
+      console.log(`   ${n.roleDesc} | ${n.charCount}字 | ${n.importance}(${n.importanceLevel}) | ${n.visualComplexity} | ${n.dialogueDensity.toFixed(1)} | ${n.actionComplexity} | ${n.emotionShift} | ${n.visualDensity} | ${n.narrativeBeat.toFixed(1)} | ${n.productShowcase} | ${n.transitionType.toFixed(1)}${spInfo} | ${n.voiceBaseline}秒`);
     });
   }
 
@@ -747,11 +865,20 @@ class ShotDurationAllocatorV2 {
       return;
     }
     
-    console.log('   初步时长分配:');
+    console.log('   12维度时长分配:');
+    console.log('   镜头 | 时长 | 角色 | 重要性 | 视觉 | 台词+ | 动作+ | 情绪+ | 信息+ | 节奏+ | 展示+ | 转场+ | 卖点+');
+    console.log('   ' + '-'.repeat(100));
     allocation.shots.forEach(shot => {
       const logs = shot.optimizationLogs.map(l => {
-        const spBonus = l.sellingPointBonus > 0 ? `,卖点+${l.sellingPointBonus}秒` : '';
-        return `${l.id}(imp=${l.importance},压缩=${l.compressionRate || '无'},视觉+${l.visualBonus || 0}${spBonus})`;
+        const spBonus = l.sellingPointBonus > 0 ? `,卖点+${l.sellingPointBonus}` : '';
+        const dialogueBonus = l.dialogueBonus > 0 ? `,台词+${l.dialogueBonus}` : '';
+        const actionBonus = l.actionBonus > 0 ? `,动作+${l.actionBonus}` : '';
+        const emotionBonus = l.emotionBonus > 0 ? `,情绪+${l.emotionBonus}` : '';
+        const visualDensityBonus = l.visualDensityBonus > 0 ? `,信息+${l.visualDensityBonus}` : '';
+        const narrativeBonus = l.narrativeBonus > 0 ? `,节奏+${l.narrativeBonus}` : '';
+        const showcaseBonus = l.showcaseBonus > 0 ? `,展示+${l.showcaseBonus}` : '';
+        const transitionBonus = l.transitionBonus > 0 ? `,转场+${l.transitionBonus}` : '';
+        return `${l.id}(imp=${l.importance},压缩=${l.compressionRate || '无'},视觉+${l.visualBonus || 0}${spBonus}${dialogueBonus}${actionBonus}${emotionBonus}${visualDensityBonus}${narrativeBonus}${showcaseBonus}${transitionBonus})`;
       }).join(', ');
       console.log(`   ${shot.id}: ${shot.duration}秒 | ${shot.type} | ${logs}`);
     });
@@ -831,6 +958,207 @@ class ShotDurationAllocatorV2 {
   }
 
   /**
+   * 🔥 v6.8.4: 新维度计算方法 - 7个维度
+   */
+
+  /**
+   * 维度6: 台词/对话密度
+   * 计算方式：根据台词长度和标点密度
+   */
+  calculateDialogueDensity(text, charCount) {
+    if (!text || charCount === 0) return 0;
+    
+    // 短台词（<10字）：density = 0.3
+    // 中台词（10-30字）：density = 0.6
+    // 长台词（30-60字）：density = 1.0
+    // 超长台词（>60字）：density = 1.3
+    if (charCount < 10) return 0.3;
+    if (charCount < 30) return 0.6;
+    if (charCount < 60) return 1.0;
+    return 1.3;
+  }
+
+  /**
+   * 维度7: 动作复杂度
+   * 根据文本中的动作描述词汇判断
+   */
+  calculateActionComplexity(text) {
+    if (!text) return 1;
+    
+    const textLower = text.toLowerCase();
+    
+    // 复杂动作关键词
+    const complexActions = ['旋转', '翻转', '跳跃', '飞舞', '爆炸', '冲刺', '舞蹈', '打斗', '追逐', '360度', '拆解', '组装'];
+    const mediumActions = ['转身', '拿起', '放下', '展示', '演示', '操作', '打开', '关闭', '切换'];
+    const simpleActions = ['走', '站', '坐', '看', '指', '说', '微笑'];
+    
+    let complexity = 1; // 静态展示
+    
+    for (const action of complexActions) {
+      if (textLower.includes(action)) complexity += 6;
+    }
+    for (const action of mediumActions) {
+      if (textLower.includes(action)) complexity += 3;
+    }
+    for (const action of simpleActions) {
+      if (textLower.includes(action)) complexity += 1;
+    }
+    
+    return Math.min(complexity, 8); // 上限8
+  }
+
+  /**
+   * 维度8: 情绪转折幅度
+   * 根据起始情绪和结束情绪的差异计算
+   */
+  calculateEmotionShift(emotionStart, emotionEnd, emotionCurve) {
+    // 如果没有提供情绪信息，从文本推断
+    if (!emotionStart || !emotionEnd) {
+      return 0; // 无法计算，返回0
+    }
+    
+    // 情绪强度映射
+    const emotionIntensity = {
+      '平静': 0, 'neutral': 0, 'calm': 0,
+      '开心': 1, 'happy': 1, 'joy': 1,
+      '兴奋': 2, 'excited': 2, 'thrill': 2,
+      '紧张': 2, 'tense': 2, 'nervous': 2,
+      '悲伤': 3, 'sad': 3, 'grief': 3,
+      '绝望': 4, 'despair': 4, 'hopeless': 4,
+      '希望': 3, 'hope': 3, 'optimistic': 3,
+      '狂喜': 4, 'ecstasy': 4, 'euphoria': 4,
+      '愤怒': 3, 'angry': 3, 'fury': 3
+    };
+    
+    const startIntensity = emotionIntensity[emotionStart] || 0;
+    const endIntensity = emotionIntensity[emotionEnd] || 0;
+    
+    // 计算差异
+    const diff = Math.abs(endIntensity - startIntensity);
+    
+    // 如果提供了情绪曲线，根据曲线复杂度增加
+    if (emotionCurve && Array.isArray(emotionCurve)) {
+      return Math.min(diff + Math.floor(emotionCurve.length / 2), 4);
+    }
+    
+    return Math.min(diff, 4);
+  }
+
+  /**
+   * 维度9: 视觉信息量
+   * 根据文本中的视觉元素描述判断
+   */
+  calculateVisualDensity(text) {
+    if (!text) return 1;
+    
+    const textLower = text.toLowerCase();
+    
+    // 极简（单一主体）：density = 1
+    // 简单（主体+背景）：density = 2
+    // 中等（多元素场景）：density = 4
+    // 复杂（拥挤场景）：density = 6
+    // 极复杂（全景+细节+文字）：density = 8
+    
+    let density = 1;
+    
+    // 复杂元素关键词
+    const complexElements = ['全景', '人群', '街道', '城市', '战场', '市场', '全景', 'crowd', 'city', 'battlefield'];
+    const mediumElements = ['室内', '房间', '办公室', '餐厅', '公园', 'interior', 'room', 'office', 'park'];
+    
+    for (const elem of complexElements) {
+      if (textLower.includes(elem)) density += 3;
+    }
+    for (const elem of mediumElements) {
+      if (textLower.includes(elem)) density += 2;
+    }
+    
+    // 如果提到多个主体，增加密度
+    const subjectCount = (text.match(/和|与|以及|还有|、/g) || []).length;
+    density += subjectCount * 0.5;
+    
+    return Math.min(Math.round(density), 8);
+  }
+
+  /**
+   * 维度10: 叙事节奏点
+   * 根据镜头类型和位置判断叙事节奏
+   */
+  calculateNarrativeBeat(beatType, index, total) {
+    // 节奏映射
+    const beatMap = {
+      // 铺垫/ exposition：beat = 0.9（可压缩）
+      'exposition': 0.9, 'setup': 0.9, '铺垫': 0.9, '背景': 0.9,
+      // 上升/ rising：beat = 1.0（标准）
+      'rising': 1.0, 'development': 1.0, '发展': 1.0, '上升': 1.0,
+      // 高潮/ climax：beat = 1.4（需要延长）
+      'climax': 1.4, '高潮': 1.4, 'peak': 1.4, '巅峰': 1.4,
+      'highlight': 1.3, '强调': 1.3, '重点': 1.3,
+      // 下降/ falling：beat = 0.8（可压缩）
+      'falling': 0.8, 'decline': 0.8, '下降': 0.8, '回落': 0.8,
+      // 转折/ twist：beat = 1.2（需要停顿）
+      'twist': 1.2, '转折': 1.2, '反转': 1.2, '转折': 1.2,
+      // 余韵/ resolution：beat = 1.1（可延长）
+      'resolution': 1.1, 'resolve': 1.1, '余韵': 1.1, '结尾': 1.1, 'ending': 1.1
+    };
+    
+    if (beatType && beatMap[beatType]) {
+      return beatMap[beatType];
+    }
+    
+    // 根据位置推断
+    if (index === 0) return 0.9; // 开头铺垫
+    if (index === total - 1) return 1.1; // 结尾余韵
+    if (index === Math.floor(total / 2)) return 1.4; // 中间高潮
+    return 1.0; // 默认标准
+  }
+
+  /**
+   * 维度11: 产品展示深度
+   * 根据展示类型判断
+   */
+  calculateProductShowcase(showcaseType) {
+    if (!showcaseType) return 1;
+    
+    const showcaseMap = {
+      // 静态展示（单角度）：showcase = 1
+      'static': 1, '静态': 1, 'single': 1, '单一': 1,
+      // 多角度展示（3-5个角度）：showcase = 2
+      'multi_angle': 2, '多角度': 2, '旋转': 2, 'rotate': 2,
+      // 360度旋转展示：showcase = 3
+      '360': 3, '360度': 3, 'full_rotation': 3, '全景旋转': 3,
+      // 功能演示（实际操作）：showcase = 4
+      'demo': 4, 'demonstration': 4, '演示': 4, '功能': 4, '操作': 4,
+      // 拆解展示（内部结构）：showcase = 5
+      'disassembly': 5, '拆解': 5, '内部': 5, 'structure': 5, 'exploded': 5
+    };
+    
+    return showcaseMap[showcaseType] || 1;
+  }
+
+  /**
+   * 维度12: 场景切换复杂度
+   * 根据转场类型判断
+   */
+  calculateTransitionType(transitionType) {
+    if (!transitionType) return 0;
+    
+    const transitionMap = {
+      // 硬切（直接切换）：transition = 0
+      'cut': 0, 'hard_cut': 0, '硬切': 0, 'none': 0, '直接': 0,
+      // 淡入淡出：transition = 0.5
+      'fade': 0.5, 'dissolve': 0.5, '淡入淡出': 0.5, 'crossfade': 0.5,
+      // 滑动切换：transition = 1.0
+      'slide': 1.0, 'wipe': 1.0, '滑动': 1.0, 'push': 1.0,
+      // 旋转/翻页：transition = 1.5
+      'rotate': 1.5, 'flip': 1.5, '旋转': 1.5, '翻页': 1.5, 'page_turn': 1.5,
+      // 复杂转场（粒子/光效）：transition = 2.0
+      'particle': 2.0, 'light': 2.0, 'complex': 2.0, '粒子': 2.0, '光效': 2.0, '特效': 2.0
+    };
+    
+    return transitionMap[transitionType] || 0;
+  }
+
+  /**
    * 统计中文字符数
    */
   countChineseChars(text) {
@@ -841,7 +1169,7 @@ class ShotDurationAllocatorV2 {
 }
 
 // 导出时同时保留旧类名兼容性
-module.exports = { ShotDurationAllocator: ShotDurationAllocatorV2 };
+module.exports = { ShotDurationAllocator: ShotDurationAllocatorV3 };
 
 // CLI用法
 if (require.main === module) {
@@ -855,11 +1183,11 @@ if (require.main === module) {
   
   const scriptData = fs.readFileSync(scriptPath, 'utf8');
   const script = JSON.parse(scriptData);
-  const allocator = new ShotDurationAllocatorV2();
+  const allocator = new ShotDurationAllocatorV3();
   const result = allocator.allocate(script);
   
   // 保存结果
-  const outputPath = scriptPath.replace('.json', '-v2-draft.json');
+  const outputPath = scriptPath.replace('.json', '-v3-draft.json');
   fs.writeFileSync(outputPath, JSON.stringify(result, null, 2));
   console.log(`\n💾 结果已保存: ${outputPath}`);
 }
