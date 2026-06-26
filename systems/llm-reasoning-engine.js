@@ -1,8 +1,10 @@
-// llm-reasoning-engine.js v6.5.27-expert-fix
-// 专家重构：两阶段生成 + 禁止reasoning_content顶替content
+// llm-reasoning-engine.js v6.6.16-stability-fix
+// 专家重构：两阶段生成 + 禁止reasoning_content顶替content + 稳定性增强
 const fs = require('fs');
 const path = require('path');
 const { normalizeLLMOutput } = require('./llm-output-normalizer');
+const { CircuitBreaker } = require('../utils/circuit-breaker');
+const { RetryPolicy } = require('../utils/retry-policy');
 
 class LLMEngine {
   constructor(options = {}) {
@@ -18,6 +20,17 @@ class LLMEngine {
     this.mode = options.mode || 'production';
     this.baseUrl = options.baseUrl || 'https://agent-gw.kimi.com/coding/v1/chat/completions';
     this.apiKey = options.apiKey || process.env.KIMI_API_KEY || process.env.MOONSHOT_API_KEY || process.env.KIMI_PLUGIN_API_KEY;
+
+    // v6.6.16-stability-fix: 集成断路器和智能重试
+    this.circuitBreaker = new CircuitBreaker({
+      failureThreshold: 5,
+      timeoutMs: 60000
+    });
+    this.retryPolicy = new RetryPolicy({
+      maxRetries: this.maxRetries,
+      baseDelayMs: 1000,
+      maxDelayMs: 30000
+    });
 
     if (!this.apiKey) {
       console.warn('[LLMEngine] ⚠️ 未检测到 API Key，请确认环境变量 KIMI_API_KEY 或 MOONSHOT_API_KEY');
@@ -36,14 +49,21 @@ class LLMEngine {
 
   async _fetchWithTimeout(url, options, timeoutMs) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => {
+      controller.abort();
+      console.warn(`[LLMEngine] ⚠️ 请求超时(${timeoutMs}ms)，已abort`);
+    }, timeoutMs);
+    
     try {
       const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
       return res;
     } catch (error) {
-      throw error;
-    } finally {
       clearTimeout(timer);
+      if (error.name === 'AbortError') {
+        throw new Error(`LLM请求超时(${timeoutMs}ms)`);
+      }
+      throw error;
     }
   }
 
@@ -168,8 +188,32 @@ class LLMEngine {
   }
 
   async reason(prompt, options = {}) {
+    const traceId = `llm-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const startedAt = Date.now();
     this.stats.totalCalls++;
+
+    try {
+      // v6.6.16-stability-fix: 使用断路器 + 智能重试
+      const result = await this.circuitBreaker.execute(async () => {
+        return await this.retryPolicy.execute(async () => {
+          return await this._doReason(prompt, options, traceId);
+        }, traceId);
+      }, traceId);
+
+      const duration = Date.now() - startedAt;
+      this.stats.totalDuration += duration;
+      console.log(`[LLMEngine] [${traceId}] ✅ 请求完成 | 耗时: ${duration}ms`);
+      
+      return result;
+    } catch (error) {
+      this.stats.errors++;
+      console.error(`[LLMEngine] [${traceId}] ❌ 请求失败: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async _doReason(prompt, options = {}, traceId = '') {
+    const startedAt = Date.now();
 
     const forceJson = options.forceJson === true || options.responseFormat?.type === 'json_object';
 
