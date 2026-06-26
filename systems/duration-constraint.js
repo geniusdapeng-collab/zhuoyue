@@ -34,7 +34,7 @@ class DurationConstraintSystem {
       min: options.minShotDuration || 2,        // 最小单镜头时长
       max: options.maxShotDuration || 10,       // 最大单镜头时长
       // 根据Seedance版本调整
-      seedanceVersion: options.seedanceVersion || '2.0'
+      seedanceVersion: options.seedanceVersion || '2.5'  // v6.8.2-fix: Seedance 2.5已发布，默认2.5
     };
     
     // 根据Seedance版本调整最小值

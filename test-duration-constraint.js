@@ -7,7 +7,7 @@ console.log('══════════════════════�
 console.log('\n【测试1】Seedance 2.0 时长约束');
 console.log('─────────────────────────────────────');
 const constraint20 = new DurationConstraintSystem({
-  seedanceVersion: '2.0'
+  seedanceVersion: '2.5'  // v6.8.2-fix: Seedance 2.5已发布
 });
 
 console.log('Seedance版本:', constraint20.getSeedanceCompatibility().version);

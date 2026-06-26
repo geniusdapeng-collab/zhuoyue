@@ -516,7 +516,7 @@ class NirathMasterPipeline {
             maxTotalDuration: 35,
             minShotDuration: 2,
             maxShotDuration: 10,
-            seedanceVersion: input.seedanceVersion || '2.0'
+            seedanceVersion: input.seedanceVersion || '2.5'  // v6.8.2-fix: Seedance 2.5已发布，默认使用2.5
           });
           
           const compatibility = this._modules.durationConstraint.getSeedanceCompatibility();
