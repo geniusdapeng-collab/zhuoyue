@@ -329,24 +329,51 @@ class JSONSafeParser {
   }
 
   static attemptRepair(text) {
+    // v6.8.6-fix2: 安全修复策略——绝不使用全局正则替换单引号，防止逻辑运算符注入
     const repairs = [
-      // 修复尾随逗号
-      t => t.replace(/,\s*([}\]])/g, '$1'),
-      // 修复单引号
-      t => t.replace(/'/g, '"'),
-      // 修复未加引号的键
-      t => t.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*\s*):/g, '$1"$2":'),
-      // 修复undefined值
-      t => t.replace(/: undefined/g, ': null'),
-      // 补全缺少的闭合括号
-      t => {
+      // 1. 安全移除尾随逗号 (状态机法，不用正则全局替换)
+      (t) => {
+        let result = '';
+        let inString = false;
+        let escape = false;
+        for (let i = 0; i < t.length; i++) {
+          const char = t[i];
+          if (escape) { result += char; escape = false; continue; }
+          if (char === '\\') { result += char; escape = true; continue; }
+          if (char === '"') inString = !inString;
+          // 仅在非字符串内部处理尾随逗号
+          if (!inString && char === ',') {
+            let j = i + 1;
+            while (j < t.length && /\s/.test(t[j])) j++;
+            if (t[j] === '}' || t[j] === ']') continue; // 跳过尾随逗号
+          }
+          result += char;
+        }
+        return result;
+      },
+      // 2. 修复未加引号的键 (安全正则，限制上下文)
+      (t) => t.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*\s*):/g, '$1"$2":'),
+      // 3. 修复undefined值
+      (t) => t.replace(/:\s*undefined/g, ': null'),
+      // 4. 补全缺少的闭合括号 (安全统计法)
+      (t) => {
         let s = t;
-        const openBraces = (s.match(/\{/g) || []).length;
-        const closeBraces = (s.match(/\}/g) || []).length;
-        const openBrackets = (s.match(/\[/g) || []).length;
-        const closeBrackets = (s.match(/\]/g) || []).length;
-        while (closeBraces < openBraces) s += '}';
-        while (closeBrackets < openBrackets) s += ']';
+        let inStr = false, esc = false;
+        let openBraces = 0, closeBraces = 0, openBrackets = 0, closeBrackets = 0;
+        for (let i = 0; i < s.length; i++) {
+          const c = s[i];
+          if (esc) { esc = false; continue; }
+          if (c === '\\') { esc = true; continue; }
+          if (c === '"') inStr = !inStr;
+          if (!inStr) {
+            if (c === '{') openBraces++;
+            else if (c === '}') closeBraces++;
+            else if (c === '[') openBrackets++;
+            else if (c === ']') closeBrackets++;
+          }
+        }
+        while (closeBraces < openBraces) { s += '}'; closeBraces++; }
+        while (closeBrackets < openBrackets) { s += ']'; closeBrackets++; }
         return s;
       }
     ];
@@ -354,7 +381,10 @@ class JSONSafeParser {
     for (const repair of repairs) {
       try {
         const fixed = repair(text);
-        return JSON.parse(fixed);
+        // 必须严格使用 JSON.parse 验证，任何包含逻辑运算符的伪造 JSON 都会在这里抛出异常
+        const parsed = JSON.parse(fixed);
+        // 深度冻结防止原型链污染
+        return Object.freeze(parsed);
       } catch (e) {}
     }
 

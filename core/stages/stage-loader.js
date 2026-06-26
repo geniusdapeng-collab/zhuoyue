@@ -15,21 +15,34 @@ class StageLoader {
   }
 
   /**
-   * 加载单个Stage
+   * 加载单个Stage (安全加固版)
+   * v6.8.6-fix1: 路径白名单校验，防止路径穿越攻击
    */
   load(stageName) {
     if (this.cache.has(stageName)) {
       return this.cache.get(stageName);
     }
 
+    // 1. 安全校验：stageName只允许字母、数字、中划线，防止路径穿越
+    if (!/^[a-zA-Z0-9-]+$/.test(stageName)) {
+      throw new Error(`非法 Stage 名称: ${stageName}`);
+    }
+
     const fileName = this._resolveFileName(stageName);
-    const filePath = path.join(this.stagesDir, fileName);
+    const filePath = path.resolve(this.stagesDir, fileName);
+
+    // 2. 安全校验：确保解析后的真实路径在stagesDir目录内
+    if (!filePath.startsWith(this.stagesDir)) {
+      throw new Error(`路径越界拦截: ${stageName} -> ${filePath}`);
+    }
 
     if (!fs.existsSync(filePath)) {
       throw new Error(`Stage模块不存在: ${stageName} (查找: ${filePath})`);
     }
 
+    // 3. 安全加载：清除缓存防止驻留，但必须在路径校验之后
     delete require.cache[require.resolve(filePath)];
+
     const module = require(filePath);
     
     // 查找导出的Stage类 - 支持多种命名方式
