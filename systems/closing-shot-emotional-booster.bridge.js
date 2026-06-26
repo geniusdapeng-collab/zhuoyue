@@ -4,7 +4,7 @@ const { PromptNormalizer } = require('./prompt-normalizer-v1');
 class ClosingShotEmotionalBoosterBridge {
   constructor(options = {}) {
     this.booster = new ClosingShotEmotionalBoosterV2(options);
-    this.normalizer = new PromptNormalizer({ maxLength: options.maxLength || 1500 });
+    this.normalizer = new PromptNormalizer({ maxLength: options.maxLength || 3000 });
   }
 
   /**

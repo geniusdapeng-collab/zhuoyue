@@ -125,7 +125,7 @@ class UniversalStyleInjector {
     const finalPrompt = prefix + cleaned + suffix;
     
     // 8. 字数检查（上限）
-    if (finalPrompt.length > 1500) {
+    if (finalPrompt.length > 3000) {
       console.warn(`⚠️ 注入后Prompt超长: ${finalPrompt.length} > 1500，尝试压缩...`);
       return this.compress(finalPrompt, 1500);
     }

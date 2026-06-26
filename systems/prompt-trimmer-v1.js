@@ -2,7 +2,7 @@ const { PROMPT_FIELDS } = require('./prompt-schema-v1');
 
 class PromptTrimmer {
   constructor(options = {}) {
-    this.maxLength = options.maxLength || 1500;
+    this.maxLength = options.maxLength || 3000;
 
     // 越靠前越先裁
     this.trimOrder = options.trimOrder || [

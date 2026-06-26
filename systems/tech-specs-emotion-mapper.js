@@ -134,7 +134,7 @@ class TechSpecsAndEmotionMapper {
     if (prompt.length >= 1470) return { injected: [], reason: '空间不足' };
     
     const toInject = [];
-    const remaining = 1500 - prompt.length;
+    const remaining = 3000 - prompt.length;
     
     // 优先注入通用有效声明
     for (const term of this.techSpecs.valid.slice(0, 3)) {

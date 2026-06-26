@@ -32,7 +32,7 @@ class ConfigUnifier {
 
   // ===== Prompt =====
   getPromptMaxLength() {
-    return this.get('prompt.maxLength', 1500);
+    return this.get('prompt.maxLength', 3000);
   }
 
   getPromptOptimalLength() {

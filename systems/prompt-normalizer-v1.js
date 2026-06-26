@@ -3,7 +3,7 @@ const { PROMPT_FIELDS, FIELD_DEFAULTS } = require('./prompt-schema-v1');
 class PromptNormalizer {
   constructor(options = {}) {
     this.options = options;
-    this.maxLength = options.maxLength || 1500;
+    this.maxLength = options.maxLength || 3000;
   }
 
   normalize(raw = {}) {

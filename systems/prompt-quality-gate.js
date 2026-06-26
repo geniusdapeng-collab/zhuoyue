@@ -210,7 +210,7 @@ class PromptQualityGate {
 
   /**
    * 维度3: 字符利用率
-   * 理想区间: 850-1500 (95-100%)
+   * 理想区间: 950-3000 (95-100%)
    * 可接受: 750-849 (85-94%)
    * 不足: <750 (<85%)
    */
@@ -219,13 +219,13 @@ class PromptQualityGate {
     const length = prompt.length;
     
     let score;
-    if (length >= 1470 && length <= 1500) {
+    if (length >= 2900 && length <= 3000) {
       score = 100;
     } else if (length >= 850 && length < 1470) {
       score = 85 + Math.round((length - 850) / 10);
     } else if (length >= 750 && length < 850) {
       score = 60 + Math.round((length - 750) / 5);
-    } else if (length > 1500) {
+    } else if (length > 3000) {
       score = 50; // 超标
     } else {
       score = Math.max(0, length / 10);
@@ -236,8 +236,8 @@ class PromptQualityGate {
       score,
       weight: this.weights.utilization,
       length,
-      maxLength: 1500,
-      utilization: Math.round((length / 1500) * 100),
+      maxLength: 3000,
+      utilization: Math.round((length / 3000) * 100),
       comment: score >= 85 ? '利用率良好' : score >= 60 ? '利用率偏低' : '严重不足'
     };
   }

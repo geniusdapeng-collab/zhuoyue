@@ -116,6 +116,10 @@ const { NirathVisualAnchorInjector } = require('../systems/nirath/nirath-visual-
 const { StageRunner } = require('../systems/stage-runner');
 const { StageContext } = require('../systems/stage-context');
 const { QualityGate } = require('../systems/quality-gate');
+
+// 【v6.6.9.4-patch】超现实系统能力迁移: Field Quality Pipeline (双层检查+修复)
+// 注意: 适配卓越系统字段结构,对缺失字段使用宽容模式
+const { FieldQualityPipeline } = require('../engines/field-quality');
 // const { StageScriptService } = require('../systems/stages/stage-script');
 // const { StageDurationService } = require('../systems/stages/stage-duration');
 // const { StageStoryboardService } = require('../systems/stages/stage-storyboard');
@@ -983,6 +987,49 @@ class NirathMasterPipeline {
 
       result.stages.compliance = await runStage('STAGE-12', () => this.stageCompliance(result.stages.render, result.stages.storyboard));
       this._injectCreativeIntensity('STAGE-12', result.stages.compliance);
+
+      // ===== v6.6.9.4-patch: Field Quality Pipeline 注入 (超现实系统能力迁移) =====
+      // 双层检查: 规则层(80%确定性问题) + LLM语义层(跨字段一致性)
+      // 位置: Stage-12之后, PromptForge Director之前
+      try {
+        const fieldQualityPipeline = new FieldQualityPipeline({
+          llmModel: this.llmModel || process.env.STORMAXE_LLM_MODEL || 'kimi-k2p6',
+          maxRounds: 2,
+        });
+
+        // 从blueprint构建PRD供修复环节使用
+        if (result.stages.blueprint) {
+          fieldQualityPipeline.setPRDFromBlueprint(result.stages.blueprint);
+        }
+
+        this.log('PIPELINE', '🔍 Field Quality Pipeline 启动 | 双层检查(规则+LLM) | 最多2轮迭代');
+        const fqResult = await fieldQualityPipeline.runAll(result.stages.render);
+
+        // 记录检查结果
+        result.stages.fieldQuality = {
+          passed: fqResult.finalShots.length > 0,
+          rounds: fqResult.reports?.length || 0,
+          issuesFound: fqResult.reports?.reduce((sum, r) => sum + (r.issues?.length || 0), 0) || 0,
+          shots: fqResult.finalShots,
+          reports: fqResult.reports,
+          logs: fqResult.logs,
+        };
+
+        // 如果修复后有结果,更新render
+        if (Array.isArray(fqResult.finalShots) && fqResult.finalShots.length > 0) {
+          result.stages.render = fqResult.finalShots;
+          this.log('PIPELINE', `✅ Field Quality Pipeline 完成 | 迭代${fqResult.reports?.length || 0}轮 | 最终shots=${fqResult.finalShots.length}`);
+        } else {
+          this.log('PIPELINE', '⚠️ Field Quality Pipeline 未返回有效shots,保持原render');
+        }
+      } catch (fqError) {
+        this.log('PIPELINE', `⚠️ Field Quality Pipeline 异常: ${fqError.message} | 跳过,不影响主链路`);
+        result.errors.push({
+          stage: 'FIELD-QUALITY-PIPELINE',
+          message: fqError.message,
+          severity: 'warning',
+        });
+      }
 
       // ===== v6.3-patch7-fix: PromptForge Director 合并逻辑完整修复 =====
       this.log('PIPELINE', '🎬 PromptForge 导演编排启动 | 子进程隔离 | 70分 → 90分');

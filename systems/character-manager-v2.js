@@ -33,7 +33,7 @@ class CharacterManagerV2 {
     this.config = {
       strictMode: config.strictMode ?? true,
       autoCheckCompliance: config.autoCheckCompliance ?? true,
-      maxChineseChars: config.maxChineseChars ?? 1500,  // 统一为980英文字符上限
+      maxChineseChars: config.maxChineseChars ?? 3000,  // 统一为980英文字符上限
       ...config
     };
     

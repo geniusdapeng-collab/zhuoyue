@@ -5,7 +5,7 @@ const { PromptValidator } = require('./prompt-validator-v1');
 
 class FinalPromptBuilder {
   constructor(options = {}) {
-    this.maxLength = options.maxLength || 1500;
+    this.maxLength = options.maxLength || 3000;
 
     this.orchestrator = new SubsystemOrchestrator(options.subsystems || {});
     this.creativeRouter = new CreativeLLMRouter(options.llm || {});

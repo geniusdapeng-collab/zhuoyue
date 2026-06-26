@@ -9,7 +9,7 @@
  * 4. 所有配置变更记录审计日志
  * 
  * 收敛的硬编码值（来自审计）：
- * - MAX_PROMPT_LENGTH: 1500（原分散在buildPromptV3=980, MicroMotion=500, screenwriter=6000等）
+ * - MAX_PROMPT_LENGTH: 3000（原分散在buildPromptV3=980, MicroMotion=500, screenwriter=6000等）
  * - MAX_DURATION: 15秒（原Math.max/min混淆）
  * - EMOTION_PHASES: 6阶段（原5/6阶段混用）
  * - LLM_TIMEOUT: 120000ms（原各模块不一致）
@@ -37,7 +37,7 @@ const DEFAULT_CONFIG = {
   // JavaScript .length 属性：中文1字=1字符，英文1字母=1字符，符号=1字符
   // Seedance API 限制按字符数计算，禁止混用字节统计
   prompt: {
-    maxLength: 1500,           // 绝对上限：API提交总字符数（含标记符号），不可突破（v6.5.34-fix: 从980放宽至1500）
+    maxLength: 3000,            // 卓越系统：API提交总字符数（含标记符号），不可突破           // 绝对上限：API提交总字符数（含标记符号），不可突破（v6.5.34-fix: 从980放宽至1500）
     optimalLength: 1470,       // 最佳目标长度（推荐值，允许±30浮动）
     minEffectiveLength: 1300,  // 最低有效长度（低于此值可能画面信息不足）
     formatOverhead: 110,      // 字段标记+分隔符开销（如"[SCENE:]"等标记符号约110字符）
@@ -121,8 +121,8 @@ const DEFAULT_CONFIG = {
     maxPromptChars: {         // 各模块的Prompt字符上限（原分散在各模块）
       screenwriter: 4000,     // 编剧模块
       director: 6000,         // 导演模块
-      promptBuilder: 1500,     // Prompt构建模块（=MAX_PROMPT_LENGTH）
-      micromotion: 1500        // 微动作模块（原硬编码500，已修复）
+      promptBuilder: 3000,     // Prompt构建模块（=MAX_PROMPT_LENGTH）
+      micromotion: 3000        // 微动作模块（原硬编码500，已修复）
     },
     circuitBreaker: {
       failureThreshold: 5,
@@ -299,7 +299,7 @@ class ConfigCenter {
 
   // 快捷方法：获取Prompt最大长度
   getPromptMaxLength() {
-    return this.get('prompt.maxLength', 1500);
+    return this.get('prompt.maxLength', 3000);
   }
 
   // 快捷方法：获取字段定义

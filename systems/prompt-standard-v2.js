@@ -13,7 +13,7 @@
 
 // 模块元数据
 const VERSION = '2.0';
-const MAX_PROMPT_LENGTH = 1500;
+const MAX_PROMPT_LENGTH = 3000;
 const AUDIT_AVAILABLE = false; // 是否启用完整性检查（向后兼容）
 
 // ============================================================
@@ -178,7 +178,7 @@ const SHOT_TYPE_WEIGHTS = {
     weights: { CHARACTER: 0.10, ACTION: 0.12, SCENE: 0.38, CAMERA: 0.22, LIGHTING: 0.18 }
   },
   'action': {
-    total: 1500,
+    total: 3000,
     weights: { CHARACTER: 0.15, ACTION: 0.35, SCENE: 0.20, CAMERA: 0.18, LIGHTING: 0.12 }
   },
   'reaction': {
@@ -1039,7 +1039,7 @@ function analyzeLegacy(prompt, options = {}) {
     fieldCount: 0,
     fields: {},
     priority: { P0: 0, P1: 0, P2: 0, P3: 0 },
-    utilization: Math.round(prompt.length / 1500 * 100),
+    utilization: Math.round(prompt.length / 3000 * 100),
     standardReadiness: 0,
     recommendations: [],
     mappedSegments: []

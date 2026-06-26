@@ -13,7 +13,7 @@
  * 
  * 约束：
  * - 仅优化现有镜头 Prompt，不重新生成世界观/档案
- * - 优化后 Prompt 仍需控制在 1500 字符以内
+ * - 优化后 Prompt 仍需控制在 3000 字符以内（卓越系统）
  * - 不回流前序链路
  * 
  * @version v1.0 (v6.2-patch68)
@@ -28,7 +28,7 @@ class ScreenwriterOptimizer {
     this.mode = options.mode || 'nirath';
     this.maxIterations = options.maxIterations || 3;
     this.minPassScore = options.minPassScore || 75;
-    this.promptMaxLength = options.promptMaxLength || 1500;
+    this.promptMaxLength = options.promptMaxLength || 3000;
     this.useLLM = options.useLLM !== false; // v6.2-patch70: 默认启用 LLM
     
     // 连贯性引擎复用（用于景别/运镜合法性检查）
@@ -228,7 +228,7 @@ class ScreenwriterOptimizer {
   /**
    * LLM 推理：每镜独立优化（v6.2-patch85）
    * 
-   * 核心设计：复用Stage 5成功经验——每镜一个prompt，串行调用，控制在1000-1500字符。
+   * 核心设计：复用Stage 5成功经验——每镜一个prompt，串行调用，控制在1000-3000字符。
    * - 避免全局7000+字符prompt导致超时kill
    * - 每镜输入：镜头信息 + 导演给它的修改建议 + PRD背景
    * - 每镜输出：该镜头的修改计划（prompt/emotionPhase/cameraMovement等）
@@ -286,7 +286,7 @@ class ScreenwriterOptimizer {
       
       const llmResult = await this.llmEngine.reasonStructured(shotPrompt, schema, {
         maxTokens: 8000,
-        timeoutMs: 120000, // 120秒：每镜prompt约1000-1500字符，实测30-60秒
+        timeoutMs: 120000, // 120秒：每镜prompt约1000-3000字符，实测30-60秒
         maxRetries: 1
       });
       
@@ -1380,7 +1380,7 @@ ${standardRules}
   // ==================== 各字段修改应用方法 ====================
 
   /**
-   * 应用prompt修改（核心：保持字数在950-1500）
+   * 应用prompt修改（核心：保持字数在950-3000）
    */
   _applyPromptModification(currentPrompt, action, instruction, targetLength) {
     if (!currentPrompt) currentPrompt = '';

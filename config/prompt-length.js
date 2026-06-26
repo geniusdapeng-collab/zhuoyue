@@ -1,10 +1,10 @@
 // 统一 Prompt 长度配置（唯一真源）
-// 超短裙系统：总长度稳定落在 1400-1500 字符区间
+// 卓越系统：总长度支持 2500-3000 字符区间
 
 module.exports = {
-  TARGET_MIN: 1400,
-  TARGET_MAX: 1500,
-  HARD_MAX: 1500,
+  TARGET_MIN: 2500,
+  TARGET_MAX: 3000,
+  HARD_MAX: 3000,
 
   // 保留兼容字段，但不再依赖固定模板长度
   SYSTEM_TEMPLATE_LEN: 0,

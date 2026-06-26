@@ -24,7 +24,7 @@ async function preRenderValidation(storyboardPath, options = {}) {
   const validator = new StoryboardValidator({
     requiredCharacters: options.requiredCharacters || [], // 默认不强制，由项目配置决定
     minChars: options.minChars || 450,
-    maxChars: options.maxChars || 1500
+    maxChars: options.maxChars || 3000
   });
   
   console.log('🔍 渲染前置验证启动...');

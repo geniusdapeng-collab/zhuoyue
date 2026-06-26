@@ -8,7 +8,7 @@ const { NegativeFieldBuilder } = require('./negative-field-builder-v1');
 
 class FinalPromptBuilderV2 {
   constructor(options = {}) {
-    this.maxLength = options.maxLength || 1500;
+    this.maxLength = options.maxLength || 3000;
 
     this.orchestrator = new SubsystemOrchestrator(options.subsystems || {});
     this.creativeRouter = new CreativeLLMRouter(options.llm || {});
