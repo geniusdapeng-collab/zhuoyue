@@ -10,7 +10,7 @@ class StoryboardValidator {
       staticPoseKeywords: ['双手自然交叠', '双手放在身前', '双手放在腹部', '端庄站立', '静态', '站立面对镜头', '双手自然下垂', '双臂交叉', '双手背在身后'],
       requiredCharacters: [], // 默认不强制，由项目配置决定
       minChars: 450,
-      maxChars: 1500,
+      maxChars: 3000,
       // v2升级：时长弹性区间配置（动态上限，避免硬编码）
       durationConfig: {
         minDuration: 3,
@@ -188,7 +188,7 @@ class StoryboardValidator {
       // 🔥 v1.1-fix: 如果 shot 还没有 prompt 字段（Stage-11 才生成），跳过字数检查
       // 因为 visualPrompt + narration 在 Stage-8 时必然不足，这是阶段性正常现象
       if (!shot.prompt && !shot.render_prompt && !shot.renderPrompt && !shot.visualPrompt) {
-        return; // 跳过：Prompt 尚未生成，Stage-11 会增强至 1470-1500
+        return; // 跳过：Prompt 尚未生成，Stage-11 会增强至 2800-3000
       }
       
       const prompt = shot.render_prompt || shot.renderPrompt || shot.prompt || shot.visualPrompt || shot.narration || '';

@@ -14,8 +14,8 @@
 
 class PromptBuilder {
   constructor(options = {}) {
-    this.maxLength = options.maxLength || 1500;
-    this.targetLength = options.targetLength || 1470;
+    this.maxLength = options.maxLength || 3000;
+    this.targetLength = options.targetLength || 2900;
     this.mode = options.mode || 'nirath';
     
     // 禁用关键词
@@ -72,8 +72,8 @@ class PromptBuilder {
     const utilization = length / this.maxLength;
     
     let status = 'normal';
-    if (length >= 970 && length <= 1500) status = 'ideal';
-    else if (length > 1500) status = 'overflow';
+    if (length >= 2800 && length <= 3000) status = 'ideal';
+    else if (length > 3000) status = 'overflow';
     else if (length < 850) status = 'underflow';
     
     const duration = Date.now() - startTime;

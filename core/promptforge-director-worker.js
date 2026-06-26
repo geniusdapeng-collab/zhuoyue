@@ -280,7 +280,7 @@ function buildComposerPrompt(shot, directorResult, screenwriterResult, cinematog
 1. 输出单条最终 Prompt
 2. 保留结构化块格式，优先使用：
    【视觉】【动态】【空间】【情绪】【镜头时间轴】【照明】【环境音效】【渲染】【导演】
-3. 长度控制在 1500 字符内
+3. 长度控制在 3000 字符内
 4. 只输出 JSON
 
 格式：
@@ -420,7 +420,7 @@ function buildQualityReport(finalShots) {
       (prompt.includes('【照明】') ? 1 : 0);
 
     const lengthScore =
-      prompt.length >= 900 && prompt.length <= 1500 ? 5 :
+      prompt.length >= 2800 && prompt.length <= 3000 ? 5 :
       prompt.length >= 700 ? 3 : 1;
 
     const cameraPassed = /【镜头时间轴】|dolly|pan|tilt|orbit|tracking/i.test(prompt);

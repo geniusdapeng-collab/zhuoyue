@@ -48,7 +48,7 @@ class GenericOpeningSystem {
       duration: this.duration,
       prompt: prompt,
       length: prompt.length,
-      utilization: Math.min(100, Math.round(prompt.length / 1500 * 100)),
+      utilization: Math.min(100, Math.round(prompt.length / 3000 * 100)),
       utilizationStatus: prompt.length >= 1400 ? 'ideal' : (prompt.length >= 1000 ? 'good' : 'insufficient'),
       title: {
         main: mainTitle,
@@ -347,7 +347,7 @@ class GenericOpeningSystem {
   }
 
   /**
-   * 组装Prompt（1500字符预算）
+   * 组装Prompt（3000字符预算）
    */
   _assemblePrompt(hook, reveal, freeze, world, characters, effect, mainTitle, subTitle) {
     const parts = [];

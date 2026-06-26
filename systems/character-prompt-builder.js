@@ -30,8 +30,8 @@ const CharacterFeatureExtractor = require('./character-feature-extractor');
 class CharacterPromptBuilder {
   constructor(config = {}) {
     this.config = {
-      maxChineseChars: config.maxChineseChars ?? 1500,  // 统一为980英文字符上限
-      maxEnglishChars: config.maxEnglishChars ?? 1500,   // 统一为980英文字符上限
+      maxChineseChars: config.maxChineseChars ?? 3000,  // 统一为3000英文字符上限
+      maxEnglishChars: config.maxEnglishChars ?? 3000,   // 统一为3000英文字符上限
       defaultLayerWeights: config.defaultLayerWeights ?? {
         forbidden: 1.0,
         subject: 1.0,

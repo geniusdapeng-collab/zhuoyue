@@ -827,7 +827,7 @@ function combineActs(act1, act2, act3, config) {
   const globalNegativePrompts = negativePromptResult + ';禁止水晶;禁止重复角色【全局负面约束结束】';
 
   // 组合三幕内容
-  const MAX_LENGTH = 1500;
+  const MAX_LENGTH = 3000;
   const TARGET_LENGTH = 960; // 留20字符缓冲
 
   const narrative = `${act1.content}\n${act2.content}\n${act3.content}`;
@@ -1345,7 +1345,7 @@ if (require.main === module) {
       console.log('\n=== 生成片头 ===');
       const opening = generateOpeningV3(config);
       console.log(`时长: ${opening.duration}秒`);
-      console.log(`Prompt长度: ${opening.promptLength}/1500 ${opening.promptLength > 1500 ? '🔴 超限!' : '✅ 合规'}`);
+      console.log(`Prompt长度: ${opening.promptLength}/3000 ${opening.promptLength > 3000 ? '🔴 超限!' : '✅ 合规'}`);
       console.log(`是否裁剪: ${opening.truncationApplied ? '是' : '否'}`);
       console.log(`合规检查: ${opening.complianceCheck.allChecksPass ? '✅ 全部通过' : '❌ 未通过'}`);
       console.log('\n三幕结构:');
@@ -1368,7 +1368,7 @@ if (require.main === module) {
   });
 
   console.log('\n✅ 通用片头系统 v3.0 测试完成');
-  console.log('\n⚠️ 注意:如果Prompt长度>1500,系统会自动渐进裁剪(技术规格→运镜→风格锁),但叙事和角色内容永远优先保留!');
+  console.log('\n⚠️ 注意:如果Prompt长度>3000,系统会自动渐进裁剪(技术规格→运镜→风格锁),但叙事和角色内容永远优先保留!');
   console.log('   裁剪顺序:1)技术规格精简 2)运镜精简 3)风格锁精简(叙事和角色永不裁剪)');
-  console.log('   如果裁剪后仍>1500,说明输入剧情太长,需要精简episodeSummary!');
+  console.log('   如果裁剪后仍>3000,说明输入剧情太长,需要精简episodeSummary!');
 }

@@ -146,7 +146,7 @@ function generateMaterialSection(materials) {
  */
 function checkPromptLength(prompt, targetLength = 1470) {
   const currentLength = prompt.length;
-  const maxLength = 1500;
+  const maxLength = 3000;
 
   return {
     current: currentLength,

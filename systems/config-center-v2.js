@@ -37,7 +37,7 @@ const DEFAULT_CONFIG = {
   // JavaScript .length 属性：中文1字=1字符，英文1字母=1字符，符号=1字符
   // Seedance API 限制按字符数计算，禁止混用字节统计
   prompt: {
-    maxLength: 3000,            // 卓越系统：API提交总字符数（含标记符号），不可突破           // 绝对上限：API提交总字符数（含标记符号），不可突破（v6.5.34-fix: 从980放宽至1500）
+    maxLength: 3000,            // 卓越系统：API提交总字符数（含标记符号），不可突破           // 绝对上限：API提交总字符数（含标记符号），不可突破（v6.5.34-fix: 从980放宽至3000）
     optimalLength: 1470,       // 最佳目标长度（推荐值，允许±30浮动）
     minEffectiveLength: 1300,  // 最低有效长度（低于此值可能画面信息不足）
     formatOverhead: 110,      // 字段标记+分隔符开销（如"[SCENE:]"等标记符号约110字符）

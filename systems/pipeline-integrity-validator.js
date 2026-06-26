@@ -763,10 +763,10 @@ Prompt: ${item.prompt?.slice(0, 300) || '空'}
           check.details.push(`${shotId}: prompt仅${result.prompt.length}字符，严重不足`);
           this.errors.push(`STAGE-11: ${shotId} Prompt仅${result.prompt.length}字符，远低于700字符最低要求`);
         }
-        if (result.prompt && result.prompt.length > 1500) {
+        if (result.prompt && result.prompt.length > 3000) {
           check.passed = false;
           check.details.push(`${shotId}: prompt${result.prompt.length}字符超标`);
-          this.errors.push(`STAGE-11: ${shotId} Prompt${result.prompt.length}字符超过1500上限`);
+          this.errors.push(`STAGE-11: ${shotId} Prompt${result.prompt.length}字符超过3000上限`);
         }
       });
     }

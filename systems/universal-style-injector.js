@@ -126,8 +126,8 @@ class UniversalStyleInjector {
     
     // 8. 字数检查（上限）
     if (finalPrompt.length > 3000) {
-      console.warn(`⚠️ 注入后Prompt超长: ${finalPrompt.length} > 1500，尝试压缩...`);
-      return this.compress(finalPrompt, 1500);
+      console.warn(`⚠️ 注入后Prompt超长: ${finalPrompt.length} > 3000，尝试压缩...`);
+      return this.compress(finalPrompt, 3000);
     }
     
     return finalPrompt;
@@ -139,8 +139,8 @@ class UniversalStyleInjector {
    */
   checkUtilization(prompt, options = {}) {
     const length = prompt.length;
-    const maxLength = options.maxLength || 1500;  // 统一为980英文字符上限
-    const minLength = options.minLength || 1470; // 最低利用率门槛95%
+    const maxLength = options.maxLength || 3000;  // 统一为3000英文字符上限
+    const minLength = options.minLength || 2800; // 最低利用率门槛93%
     const percentage = Math.round((length / maxLength) * 100);
     
     return {

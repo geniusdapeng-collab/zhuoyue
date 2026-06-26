@@ -4,7 +4,7 @@ const { PromptValidator } = require('./prompt-validator-v1');
 class FinalPromptPipelineExample {
   constructor(options = {}) {
     this.builder = new FinalPromptBuilder(options);
-    this.validator = new PromptValidator({ maxLength: 1500 });
+    this.validator = new PromptValidator({ maxLength: 3000 });
   }
 
   async buildPromptForShot(shot, context = {}) {

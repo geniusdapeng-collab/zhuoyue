@@ -81,7 +81,7 @@ function parsePromptFields(promptText) {
 
 class IncrementalTrimEngine {
   constructor(options = {}) {
-    this.targetLength = options.targetLength || 1500;
+    this.targetLength = options.targetLength || 3000;
     this.minEffectiveLength = options.minEffectiveLength || 850;
     this.auditLog = [];
     this.preserveSentences = options.preserveSentences !== false;
@@ -360,7 +360,7 @@ class IncrementalTrimEngine {
 
 function smartTrim(prompt, options = {}) {
   const engine = new IncrementalTrimEngine({
-    targetLength: options.targetLength || options.maxLength || 1500,
+    targetLength: options.targetLength || options.maxLength || 3000,
     minEffectiveLength: options.minEffectiveLength || 850,
     preserveSentences: options.preserveSentences !== false,
     preserveClauses: options.preserveClauses !== false

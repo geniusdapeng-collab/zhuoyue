@@ -1002,23 +1002,33 @@ class NirathMasterPipeline {
           fieldQualityPipeline.setPRDFromBlueprint(result.stages.blueprint);
         }
 
-        this.log('PIPELINE', '🔍 Field Quality Pipeline 启动 | 双层检查(规则+LLM) | 最多2轮迭代');
-        const fqResult = await fieldQualityPipeline.runAll(result.stages.render);
+        // 卓越系统字段适配: 将卓越系统shot → 25字段 → 检查 → 回写
+        const { ZhuoyueFieldAdapter } = require('../engines/field-quality/zhuoyue-field-adapter');
+        const fieldAdapter = new ZhuoyueFieldAdapter();
+        
+        this.log('PIPELINE', '🔍 Field Quality Pipeline 启动 | 双层检查(规则+LLM) | 卓越系统字段适配');
+        
+        // 适配为25字段格式
+        const adaptedShots = fieldAdapter.adaptShots(result.stages.render);
+        const fqResult = await fieldQualityPipeline.runAll(adaptedShots);
+        
+        // 回写修复结果到卓越系统格式
+        const repairedShots = fieldAdapter.writeBack(fqResult.finalShots, result.stages.render);
 
         // 记录检查结果
         result.stages.fieldQuality = {
-          passed: fqResult.finalShots.length > 0,
+          passed: repairedShots.length > 0,
           rounds: fqResult.reports?.length || 0,
           issuesFound: fqResult.reports?.reduce((sum, r) => sum + (r.issues?.length || 0), 0) || 0,
-          shots: fqResult.finalShots,
+          shots: repairedShots,
           reports: fqResult.reports,
           logs: fqResult.logs,
         };
 
         // 如果修复后有结果,更新render
-        if (Array.isArray(fqResult.finalShots) && fqResult.finalShots.length > 0) {
-          result.stages.render = fqResult.finalShots;
-          this.log('PIPELINE', `✅ Field Quality Pipeline 完成 | 迭代${fqResult.reports?.length || 0}轮 | 最终shots=${fqResult.finalShots.length}`);
+        if (Array.isArray(repairedShots) && repairedShots.length > 0) {
+          result.stages.render = repairedShots;
+          this.log('PIPELINE', `✅ Field Quality Pipeline 完成 | 迭代${fqResult.reports?.length || 0}轮 | 最终shots=${repairedShots.length}`);
         } else {
           this.log('PIPELINE', '⚠️ Field Quality Pipeline 未返回有效shots,保持原render');
         }
@@ -1138,7 +1148,7 @@ class NirathMasterPipeline {
               this.log('PIPELINE', `⚠️ PromptForge子进程已退出(exitCode=${worker.exitCode}),停止心跳监听`);
               clearInterval(heartbeatInterval);
             }
-          }, 30000); // 每30秒检查一次
+          }, 15000); // 每30秒检查一次
 
           const worker = spawn('node', [
             `--max-old-space-size=${workerMemoryMb}`,
@@ -5321,7 +5331,7 @@ ${isNirath
           length: openingPrompt.length,
           mouthAction: shot.mouthAction,
           utilization: Math.round(openingPrompt.length / PROMPT_LENGTH.HARD_MAX * 100),
-          utilizationStatus: openingPrompt.length >= 970 && openingPrompt.length <= PROMPT_LENGTH.HARD_MAX ? '🔥理想' : (openingPrompt.length > PROMPT_LENGTH.HARD_MAX ? '❌超标' : '⚠️空间浪费'),
+          utilizationStatus: openingPrompt.length >= 2800 && openingPrompt.length <= PROMPT_LENGTH.HARD_MAX ? '🔥理想' : (openingPrompt.length > PROMPT_LENGTH.HARD_MAX ? '❌超标' : '⚠️空间浪费'),
           qualityScore: { totalScore: 95, cameraVariety: 8, lightingProgression: 'advanced', emotionalDepth: 90 },
           enhanced: true,
           isOpening: true
@@ -6239,7 +6249,7 @@ ${isNirath
       // Prompt空间利用(最高15分)
       // v6.2-patch110-fix: 使用裁剪前长度计算,避免评分偏低
       const originalPromptLength = enhanced && enhanced.prompt ? enhanced.prompt.length : prompt.length;
-      const promptUtilization = originalPromptLength >= PROMPT_LENGTH.HARD_MAX ? 15 : originalPromptLength >= PROMPT_LENGTH.TARGET_MAX ? 12 : originalPromptLength >= 920 ? 10 : 5;
+      const promptUtilization = originalPromptLength >= PROMPT_LENGTH.HARD_MAX ? 15 : originalPromptLength >= PROMPT_LENGTH.TARGET_MAX ? 12 : originalPromptLength >= 2800 ? 10 : 5;
 
       // 叙事画面对齐(最高20分):narration与画面内容匹配度
       const narrativeAlignment = this.calculateNarrativeAlignment(shot, prompt);
@@ -6494,7 +6504,7 @@ ${isNirath
       }
 
       const utilization = prompt.length / PROMPT_LENGTH.HARD_MAX;
-      utilizationStatus = prompt.length >= 970 && prompt.length <= PROMPT_LENGTH.HARD_MAX ? '🔥理想' : (prompt.length > PROMPT_LENGTH.HARD_MAX ? '❌超标' : (prompt.length >= 850 ? '✅达标' : '⚠️空间浪费'));
+      utilizationStatus = prompt.length >= 2800 && prompt.length <= PROMPT_LENGTH.HARD_MAX ? '🔥理想' : (prompt.length > PROMPT_LENGTH.HARD_MAX ? '❌超标' : (prompt.length >= 2500 ? '✅达标' : '⚠️空间浪费'));
 
       // v6.3-patch10-fix: 最终兜底补齐 - 如果提示词仍然太短,强制补齐到目标长度
       if (charCounter.count(prompt) < 889) {
@@ -6708,11 +6718,11 @@ ${isNirath
           prompts[i].length = prompts[i].prompt.length;
           prompts[i].utilization = Math.round(prompts[i].length / PROMPT_LENGTH.HARD_MAX * 100);
           // 更新利用率状态
-          if (prompts[i].length >= 970 && prompts[i].length <= PROMPT_LENGTH.HARD_MAX) {
+          if (prompts[i].length >= 2800 && prompts[i].length <= PROMPT_LENGTH.HARD_MAX) {
             prompts[i].utilizationStatus = '🔥理想';
           } else if (prompts[i].length > PROMPT_LENGTH.HARD_MAX) {
             prompts[i].utilizationStatus = '❌超标';
-          } else if (prompts[i].length >= 850) {
+          } else if (prompts[i].length >= 2500) {
             prompts[i].utilizationStatus = '✅达标';
           } else {
             prompts[i].utilizationStatus = '⚠️空间浪费';

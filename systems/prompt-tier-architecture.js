@@ -15,7 +15,7 @@
 
 class PromptTierArchitecture {
   constructor(options = {}) {
-    this.maxLength = options.maxLength || 1500;
+    this.maxLength = options.maxLength || 3000;
     this.optimalLength = options.optimalLength || 1470;
     
     // 七层预算分配（按优先级和重要性）

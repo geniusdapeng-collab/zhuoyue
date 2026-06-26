@@ -16,7 +16,7 @@
 if (this.mode === 'nirath' && this.modules.setDesignModule) {
   const setDesignResult = await this.modules.setDesignModule.design(shot, {
     nirathAnchor: getNirathAnchor(),
-    promptBudget: Math.max(150, 1500 - (shot.visualPrompt?.length || 0) - 150) // 预留150给角色+运镜
+    promptBudget: Math.max(150, 3000 - (shot.visualPrompt?.length || 0) - 150) // 预留150给角色+运镜
   });
   
   shot.environmentPrompt = setDesignResult.environmentPrompt;
@@ -44,7 +44,7 @@ const INTEGRATION_CODE = `
         try {
           const setDesignResult = await this.modules.setDesignModule.design(shot, {
             nirathAnchor: getNirathAnchor(),
-            promptBudget: Math.max(150, 1500 - (shot.visualPrompt?.length || 0) - 150)
+            promptBudget: Math.max(150, 3000 - (shot.visualPrompt?.length || 0) - 150)
           });
           
           shot.environmentPrompt = setDesignResult.environmentPrompt;
