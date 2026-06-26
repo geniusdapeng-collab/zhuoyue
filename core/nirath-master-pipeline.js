@@ -428,6 +428,30 @@ class NirathMasterPipeline {
     } catch (e) {
       this.log('INIT', `⚠️ 人物呼吸感增强器加载失败: ${e.message}`);
     }
+    
+    // v6.7.0: 初始化商业广告片系统
+    if (this.mode === 'commercial' || input?.videoType === 'commercial' || input?.type === 'commercial') {
+      try {
+        const { ResolutionSpec } = require('../systems/resolution-spec');
+        const { CommercialMode } = require('../systems/commercial-mode');
+        const { PremiumEnhancer } = require('../systems/premium-enhancer');
+        
+        this._modules.resolutionSpec = new ResolutionSpec(input?.resolution || '4K-UHD');
+        this._modules.commercialMode = new CommercialMode({
+          enabled: true,
+          product: input?.product,
+          brand: input?.brand,
+          sellingPoints: input?.sellingPoints || [],
+          brandColor: input?.brandColor,
+          platform: input?.platform || 'tv'
+        });
+        this._modules.premiumEnhancer = new PremiumEnhancer({ enabled: true, intensity: 'cinematic' });
+        
+        this.log('INIT', '✅ 商业广告片系统已加载 | 4K画质 | 影视级质感');
+      } catch (e) {
+        this.log('INIT', `⚠️ 商业广告片系统加载失败: ${e.message}`);
+      }
+    }
 
     // 【v6.2-patch47】初始化美术布景模块(可选)
     if (SetDesignModule) {
@@ -6837,6 +6861,37 @@ ${isNirath
         } catch (e) {
           // AB-roll增强失败不影响主流程
           this.log('STAGE-11', `  ⚠️ ${shot.id} AB-roll增强失败: ${e.message}`);
+        }
+      }
+
+      // v6.7.0: 商业广告片模式增强
+      if (this.modules.commercialMode || this.modules.premiumEnhancer || this.modules.resolutionSpec) {
+        try {
+          let commercialPrompt = shot.prompt;
+          
+          // 注入画质规格
+          if (this.modules.resolutionSpec) {
+            commercialPrompt = this.modules.resolutionSpec.injectToPrompt(commercialPrompt);
+          }
+          
+          // 注入商业广告规范
+          if (this.modules.commercialMode) {
+            commercialPrompt = this.modules.commercialMode.enhanceShotPrompt(shot, commercialPrompt);
+          }
+          
+          // 注入高级质感
+          if (this.modules.premiumEnhancer) {
+            commercialPrompt = this.modules.premiumEnhancer.enhance(shot, commercialPrompt);
+          }
+          
+          if (commercialPrompt !== shot.prompt) {
+            const originalLength = shot.prompt.length;
+            shot.prompt = commercialPrompt;
+            shot._commercialEnhanced = true;
+            this.log('STAGE-11', `  🎯 商业广告增强: ${shot.id} | +${commercialPrompt.length - originalLength}字符 | 4K质感`);
+          }
+        } catch (e) {
+          this.log('STAGE-11', `  ⚠️ 商业广告增强失败: ${e.message}`);
         }
       }
 
