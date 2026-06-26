@@ -419,6 +419,15 @@ class NirathMasterPipeline {
     if (beastMotionAdapter) {
       this._modules.beastMotionAdapter = beastMotionAdapter;
     }
+    
+    // v6.6.18: 初始化人物呼吸感增强器
+    try {
+      const { HumanBreathEnhancer } = require('../systems/human-breath-enhancer');
+      this._modules.humanBreathEnhancer = new HumanBreathEnhancer({ enabled: true, intensity: 'medium' });
+      this.log('INIT', '✅ 人物呼吸感增强器已加载');
+    } catch (e) {
+      this.log('INIT', `⚠️ 人物呼吸感增强器加载失败: ${e.message}`);
+    }
 
     // 【v6.2-patch47】初始化美术布景模块(可选)
     if (SetDesignModule) {
@@ -6349,6 +6358,22 @@ ${isNirath
               }
             } catch (e) {
               motionLog.push(`异兽动作异常:${e.message}`);
+            }
+          }
+
+          // v6.6.18: 人物呼吸感增强（在人类角色镜头中注入生命力描述）
+          if (hasHuman && !this.options?.disableBreathEnhancer) {
+            try {
+              const { HumanBreathEnhancer } = require('../systems/human-breath-enhancer');
+              const breathEnhancer = new HumanBreathEnhancer({ intensity: 'medium' });
+              const breathResult = breathEnhancer.enhance(shot, motionEnhanced);
+              if (breathResult.enhanced !== motionEnhanced) {
+                motionEnhanced = breathResult.enhanced;
+                motionLog.push(`呼吸感+${breathResult.stats.addedLength}字符`);
+                this.log('STAGE-11', `  🌬️ 人物呼吸感增强: ${shot.id} | ${breathResult.added.length}个维度`);
+              }
+            } catch (e) {
+              motionLog.push(`呼吸感异常:${e.message}`);
             }
           }
 
