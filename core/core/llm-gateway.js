@@ -147,7 +147,10 @@ class KimiProviderAdapter {
 
   async initialize() {
     try {
-      const config = require('/root/.openclaw/openclaw.json');
+      const path = require('path');
+      const os = require('os');
+      const configPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
+      const config = require(configPath);
       const remoteConfig = config?.agents?.defaults?.memorySearch?.remote;
       if (!remoteConfig || !remoteConfig.apiKey) {
         throw new Error('Kimi API配置未找到');

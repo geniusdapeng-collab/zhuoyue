@@ -165,33 +165,31 @@ class ScriptEngine {
     }
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const savedFiles = [];
+    const errors = [];
     
-    // 保存用户意图
-    fs.writeFileSync(
-      path.join(outputDir, `intent-${timestamp}.json`),
-      JSON.stringify(result.userIntent, null, 2)
-    );
+    const filesToSave = [
+      { name: `intent-${timestamp}.json`, content: JSON.stringify(result.userIntent, null, 2) },
+      { name: `blueprint-${timestamp}.json`, content: result.blueprint.toJSON() },
+      { name: `validation-${timestamp}.json`, content: JSON.stringify(result.validation, null, 2) },
+      { name: `adapted-${timestamp}.json`, content: JSON.stringify(result.adapted, null, 2) },
+    ];
 
-    // 保存剧本蓝图
-    fs.writeFileSync(
-      path.join(outputDir, `blueprint-${timestamp}.json`),
-      result.blueprint.toJSON()
-    );
+    for (const file of filesToSave) {
+      try {
+        fs.writeFileSync(path.join(outputDir, file.name), file.content);
+        savedFiles.push(file.name);
+      } catch (err) {
+        errors.push({ file: file.name, error: err.message });
+        console.error(`[ScriptEngine] ⚠️ 保存失败: ${file.name} - ${err.message}`);
+      }
+    }
 
-    // 保存校验报告
-    fs.writeFileSync(
-      path.join(outputDir, `validation-${timestamp}.json`),
-      JSON.stringify(result.validation, null, 2)
-    );
-
-    // 保存适配结果
-    fs.writeFileSync(
-      path.join(outputDir, `adapted-${timestamp}.json`),
-      JSON.stringify(result.adapted, null, 2)
-    );
-
-    console.log(`[ScriptEngine] 结果已保存到: ${outputDir}`);
-    return outputDir;
+    if (errors.length > 0) {
+      console.warn(`[ScriptEngine] ⚠️ ${errors.length}个文件保存失败`);
+    }
+    console.log(`[ScriptEngine] 结果已保存到: ${outputDir} (${savedFiles.length}个文件)`);
+    return { outputDir, savedFiles, errors };
   }
 }
 

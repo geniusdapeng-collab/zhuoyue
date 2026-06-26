@@ -40,6 +40,8 @@ class LLMEngine {
     try {
       const res = await fetch(url, { ...options, signal: controller.signal });
       return res;
+    } catch (error) {
+      throw error;
     } finally {
       clearTimeout(timer);
     }

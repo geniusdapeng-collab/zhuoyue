@@ -34,10 +34,14 @@ async function main() {
     timeoutMs: options.timeoutMs || 120000
   });
 
-  fs.writeFileSync(outputFile, JSON.stringify({
-    success: true,
-    result
-  }, null, 2), 'utf8');
+  try {
+    fs.writeFileSync(outputFile, JSON.stringify({
+      success: true,
+      result
+    }, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to write output:', err.message);
+  }
 }
 
 main().catch((err) => {

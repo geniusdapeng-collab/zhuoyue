@@ -339,9 +339,12 @@ class LLMBatchManager extends EventEmitter {
           this.processQueue();  // 处理下一个
         });
       }
-    } finally {
-      this._processing = false;
-    }
+      } catch (error) {
+        console.error(`[BatchManager] ⚠️ 队列处理异常: ${error.message}`);
+        this.emit('queue.error', error);
+      } finally {
+        this._processing = false;
+      }
   }
 
   /**
