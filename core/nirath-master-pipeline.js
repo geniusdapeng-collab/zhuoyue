@@ -3615,10 +3615,25 @@ ${isNirath
       const injectedShots = injector.injectBatch(shots);
       const injectedCount = injectedShots.filter(s => s._nirathAnchors?.wasInjected).length;
       this.log('STAGE-7', `🌍 Nirath锚点注入完成: ${injectedCount}/${shots.length} 镜注入`);
-      return { shots: injectedShots, totalDuration: injectedShots.reduce((s, x) => s + x.duration, 0) };
+      
+      // v6.6.19: A/B-roll导演分析
+      const { ABRollDirector } = require('../systems/ab-roll-director');
+      const abDirector = new ABRollDirector({ enabled: true, brollRatio: 0.3 });
+      const analyzedShots = abDirector.analyzeStoryboard(injectedShots);
+      const bRollCount = analyzedShots.filter(s => s.rollType === 'b-roll').length;
+      this.log('STAGE-7', `🎬 A/B-roll分析完成 | A-roll:${analyzedShots.length - bRollCount} | B-roll:${bRollCount}`);
+      
+      return { shots: analyzedShots, totalDuration: analyzedShots.reduce((s, x) => s + x.duration, 0) };
     }
+    
+    // v6.6.19: 非Nirath模式也进行A/B-roll分析
+    const { ABRollDirector } = require('../systems/ab-roll-director');
+    const abDirector = new ABRollDirector({ enabled: true, brollRatio: 0.25 });
+    const analyzedShots = abDirector.analyzeStoryboard(shots);
+    const bRollCount = analyzedShots.filter(s => s.rollType === 'b-roll').length;
+    this.log('STAGE-7', `🎬 A/B-roll分析完成 | A-roll:${analyzedShots.length - bRollCount} | B-roll:${bRollCount}`);
 
-    return { shots, totalDuration: shots.reduce((s, x) => s + x.duration, 0) };
+    return { shots: analyzedShots, totalDuration: analyzedShots.reduce((s, x) => s + x.duration, 0) };
   }
 
   /**
@@ -6807,6 +6822,23 @@ ${isNirath
       prompt = this.safeTrimStructuredPrompt(prompt, PROMPT_LENGTH.HARD_MAX);
 
       shot.prompt = prompt;
+
+      // v6.6.19: A/B-roll Prompt差异化增强
+      if (shot.rollType) {
+        try {
+          const { ABRollDirector } = require('../systems/ab-roll-director');
+          const abDirector = new ABRollDirector({ enabled: true });
+          const enhancedPrompt = abDirector.enhancePrompt(shot, prompt);
+          if (enhancedPrompt !== prompt) {
+            shot.prompt = enhancedPrompt;
+            shot._abRollEnhanced = true;
+            this.log('STAGE-11', `  🎬 ${shot.id} ${shot.rollType.toUpperCase()}增强 | +${enhancedPrompt.length - prompt.length}字符`);
+          }
+        } catch (e) {
+          // AB-roll增强失败不影响主流程
+          this.log('STAGE-11', `  ⚠️ ${shot.id} AB-roll增强失败: ${e.message}`);
+        }
+      }
 
         // v6.6.9.4-patch21: 注入定妆照(外部专家方案 - 角色/定妆照收口器)
         shot.referenceImages = buildReferenceImagesForShot(shot, {characters: stages.characters || {}});
