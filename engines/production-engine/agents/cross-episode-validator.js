@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { TIMEOUTS } = require('../../../config/timeout-config');
 
 class CrossEpisodeValidator {
   constructor(options = {}) {
@@ -12,7 +13,7 @@ class CrossEpisodeValidator {
       // LLM配置
       llmEngine: options.llmEngine || null,
       model: options.model || 'kimi-k2p6',
-      timeout: options.timeout || 120000,
+      timeout: options.timeout || TIMEOUTS.LLM.CROSS_EPISODE_VALIDATOR,
       // 置信度阈值
       confidence: {
         ignoreThreshold: 0.4,    // 低于此值丢弃

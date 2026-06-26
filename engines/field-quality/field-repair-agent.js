@@ -13,6 +13,7 @@
  */
 const { BaseAgent } = require('../production-engine/agents/base-agent');
 const { SPEC_MAP, Priority, Severity, IssueType, MAX_TOTAL_CHARS } = require('./field-check-agent');
+const { TIMEOUTS } = require('../config/timeout-config');
 
 // ============================================================
 // 数据模型 - RepairAction, RepairLog, PRD
@@ -385,10 +386,10 @@ class LLMRepairer {
 
 class FieldRepairAgent extends BaseAgent {
   constructor(options = {}) {
-    super({ name: 'FieldRepairAgent', llmTimeout: options.llmTimeout || 180000, ...options });
+    super({ name: 'FieldRepairAgent', llmTimeout: options.llmTimeout || TIMEOUTS.LLM.FIELD_REPAIRER, ...options });
     this.ruleRepairer = new RuleRepairer();
     // 【v2.1.4-fix13】把超时配置传给 LLMRepairer
-    this.llmRepairer = new LLMRepairer(this._getLLMEngine(), options.llmTimeout || 180000);
+    this.llmRepairer = new LLMRepairer(this._getLLMEngine(), options.llmTimeout || TIMEOUTS.LLM.FIELD_REPAIRER);
     this.prd = options.prd || null;
   }
 

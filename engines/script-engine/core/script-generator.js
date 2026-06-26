@@ -4,6 +4,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { TIMEOUTS } = require('../../config/timeout-config');
 const { ScriptBlueprint } = require('./script-blueprint');
 
 class ScriptGenerator {
@@ -16,7 +17,7 @@ class ScriptGenerator {
       temperature: options.temperature || 1,
       promptTemplateDir: options.promptTemplateDir || path.join(__dirname, '../prompts'),
       templateDir: options.templateDir || path.join(__dirname, '../templates'),
-      timeout: options.timeout || 180000,
+      timeout: options.timeout || TIMEOUTS.LLM.SCRIPT_GENERATOR,
       maxRetries: options.maxRetries || 3,
       ...options
     };

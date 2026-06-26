@@ -4,6 +4,7 @@
 // 版本:v1.0.0 | 日期:2026-06-08
 
 const path = require('path');
+const { TIMEOUTS } = require('../../config/timeout-config');
 
 // v2.0.0-LLM-Agent: 导入Agent
 const { SceneDesignAgent } = require('./agents/scene-design-agent');
@@ -19,7 +20,7 @@ const { globalNegativePromptInjector } = require('../../../systems/global-negati
 // v2.0.0-LLM-Agent: Agent配置
 const DEFAULT_AGENT_CONFIG = {
   enableLLMAgents: true,
-  llmTimeout: 180000, // 【v2.1.4-fix10-P25-fix3】单次3分钟，避免一次失败吃掉1/3预算
+  llmTimeout: TIMEOUTS.LLM.STANDARD, // 【v2.1.4-fix10-P25-fix3】单次3分钟，避免一次失败吃掉1/3预算
   llmMaxRetries: 2,
   // 【v2.1.4-fix13-审计修复】从环境变量读取模型配置，消除硬编码
   llmModel: process.env.STORMAXE_LLM_MODEL || 'kimi-k2p6',
@@ -51,6 +52,7 @@ class ProductionEngine {
       targetPromptLength: 12000, // 【审计修复】与 config/prompt-length.js 保持一致
       referenceImageCount: 2,
       outputDir: options.outputDir || '/tmp/hyperreality-output',
+      logLevel: options.logLevel || 'info', // v6.8.8-fix: 日志级别控制
       ...options
     };
 
@@ -312,10 +314,17 @@ class ProductionEngine {
     }
   }
 
-  log(stage, message) {
-    const entry = { stage, message, timestamp: Date.now() };
+  log(stage, message, level = 'info') {
+    const entry = { stage, message, level, timestamp: Date.now() };
     this.logs.push(entry);
-    console.log(`[${stage}] ${message}`);
+    // v6.8.8-fix: 日志级别控制，error/warn 用 stderr，debug 需开启
+    const levelPriority = { debug: 0, info: 1, warn: 2, error: 3 };
+    const configPriority = levelPriority[this.config.logLevel || 'info'] || 1;
+    if (levelPriority[level] >= configPriority) {
+      if (level === 'error') console.error(`[${stage}] ❌ ${message}`);
+      else if (level === 'warn') console.warn(`[${stage}] ⚠️ ${message}`);
+      else console.log(`[${stage}] ${message}`);
+    }
   }
 
   /**
@@ -466,8 +475,8 @@ class ProductionEngine {
     // 原预算：540s (9min) → 新预算：1200s (20min)
     // Phase 1: ~90s | Phase 2: ~300s | Phase 3: ~570s (串行6镜头 × 90s)
     // 总计需求：~960s，预留240s余量应对波动
-    const HARD_BUDGET_MS = this.agentConfig.totalDeadlineMs || 1200000;
-    const SAFETY_MARGIN_MS = 60000; // 余量60s
+    const HARD_BUDGET_MS = this.agentConfig.totalDeadlineMs || TIMEOUTS.BUDGET.TOTAL;
+    const SAFETY_MARGIN_MS = TIMEOUTS.BUDGET.SAFETY_MARGIN; // 余量60s
     const globalDeadline = startTime + HARD_BUDGET_MS - SAFETY_MARGIN_MS;
     this._globalDeadline = globalDeadline;
     this._setAgentDeadline(globalDeadline);
@@ -624,7 +633,7 @@ class ProductionEngine {
         // 公式：镜头数 × 180秒(LLM生成) + 30秒(缓冲)
         // 【v2.1.5-fix】从90s增加到180s，实际LLM调用需120-180s/镜头
         const shotCount = currentShots.length;
-        const PHASE3_PER_SHOT_MS = 180000; // 每镜头180秒（实际需120-180s）
+        const PHASE3_PER_SHOT_MS = TIMEOUTS.BUDGET.PHASE3_PER_SHOT; // 每镜头180秒（实际需120-180s）
         const PHASE3_BUFFER_MS = 30000;   // 30秒缓冲
         const phase3NeedMs = shotCount * PHASE3_PER_SHOT_MS + PHASE3_BUFFER_MS;
         
@@ -684,7 +693,7 @@ class ProductionEngine {
           const pipeline = new FieldQualityPipeline({
             llmModel: this.llmModel,
             maxRounds: 0, // 纯规则，不调用LLM
-            checkerTimeout: 30000,
+            checkerTimeout: TIMEOUTS.LLM.FAST,
             repairerTimeout: 0,
           });
           pipeline.setPRDFromBlueprint(adaptedBlueprint);
@@ -705,8 +714,8 @@ class ProductionEngine {
           const pipeline = new FieldQualityPipeline({
             llmModel: this.llmModel,
             maxRounds: 1, // 1轮
-            checkerTimeout: 60000,
-            repairerTimeout: 120000,
+            checkerTimeout: TIMEOUTS.LLM.FIELD_CHECKER,
+            repairerTimeout: TIMEOUTS.LLM.FIELD_REPAIRER,
           });
           pipeline.setPRDFromBlueprint(adaptedBlueprint);
           // 【v2.1.4-fix13-审计修复】下发全局 deadline
@@ -727,8 +736,8 @@ class ProductionEngine {
           const pipeline = new FieldQualityPipeline({
             llmModel: this.llmModel,
             maxRounds: 2,
-            checkerTimeout: 120000,
-            repairerTimeout: 180000,
+            checkerTimeout: TIMEOUTS.LLM.STANDARD,
+            repairerTimeout: TIMEOUTS.LLM.SLOW,
           });
           pipeline.setPRDFromBlueprint(adaptedBlueprint);
           // 【v2.1.4-fix13-审计修复】下发全局 deadline
@@ -1096,30 +1105,53 @@ class ProductionEngine {
       Promise.resolve(tasks[k]).then(v => {
         this.log(k.toUpperCase(), `完成 (${Date.now() - starts[i]}ms)`);
         return v;
+      }).catch(err => {
+        // v6.8.8-fix: 每个任务独立捕获，防止一个失败拖垮整个并行阶段
+        this.log(k.toUpperCase(), `⚠️ 异常(降级处理): ${err.message}`);
+        return this._emptyAgentResult(k);
       })
     );
 
-    // 【v2.1.4-fix13-审计修复】外层超时保护：整个并行阶段最多等timeoutMs
-    let timer;
-    const timeoutPromise = new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`${label}并行阶段超时(${timeoutMs}ms)`)), timeoutMs);
+    // v6.8.8-fix: 修复 Promise.race + Promise.allSettled 矛盾问题
+    // 原问题: race 中 timeoutPromise reject 会直接抛异常，allSettled 的结果被丢弃
+    // 修复: 使用 Promise.race 返回 settled 结果，超时后返回已完成的任务 + 未完成的降级结果
+    let timer = null;
+    let timedOut = false;
+    const timeoutPromise = new Promise((resolve) => {
+      timer = setTimeout(() => {
+        timedOut = true;
+        resolve({ __timeout: true });
+      }, timeoutMs);
     });
 
-    const settled = await Promise.race([
-      Promise.allSettled(wrapped),
-      timeoutPromise
-    ]).finally(() => clearTimeout(timer));
+    try {
+      const result = await Promise.race([
+        Promise.all(wrapped).then(values => ({ __timeout: false, values })),
+        timeoutPromise
+      ]);
 
-    const values = [];
-    settled.forEach((r, i) => {
-      if (r.status === 'fulfilled') {
-        values.push(r.value);
-      } else {
-        this.log(label, `⚠️ ${keys[i]} 异常: ${r.reason?.message || r.reason}(降级处理,继续)`);
-        values.push(this._emptyAgentResult(keys[i]));
+      // 清理定时器（如果 all 先完成）
+      if (timer) clearTimeout(timer);
+
+      if (result.__timeout) {
+        // 超时：返回已完成的 + 未完成的降级
+        this.log(label, `⚠️ 并行阶段超时(${timeoutMs}ms)，返回已完成任务结果`);
+        // 等待所有任务 settled，但只取已完成的
+        const settled = await Promise.allSettled(wrapped);
+        return settled.map((r, i) =>
+          r.status === 'fulfilled' ? r.value : this._emptyAgentResult(keys[i])
+        );
       }
-    });
-    return values;
+
+      // 正常完成
+      return result.values;
+    } catch (error) {
+      // 清理定时器
+      if (timer) clearTimeout(timer);
+      this.log(label, `⚠️ 并行阶段异常: ${error.message}(降级处理,继续)`);
+      // 返回全部降级结果
+      return keys.map(k => this._emptyAgentResult(k));
+    }
   }
 
   /** 并行任务异常时的兜底空结果(仅兜底,正常路径不会走到) */

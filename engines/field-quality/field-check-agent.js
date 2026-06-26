@@ -14,6 +14,7 @@
  */
 const { BaseAgent } = require('../production-engine/agents/base-agent');
 const { asString, asStringLower, safeSlice, safeIncludes } = require('../field-standardizer');
+const { TIMEOUTS } = require('../config/timeout-config');
 
 // ============================================================
 // 数据模型 - Issue, CheckReport
@@ -576,7 +577,7 @@ const LLM_CHECKER_SYSTEM_PROMPT = `你是一个 AI 视频生成提示词的质�
 注意：只报告确实存在的语义问题，不要报告规则引擎已覆盖的格式/缺失问题。如果语义检查全部通过，返回 {"issues": []}。`;
 
 class LLMChecker {
-  constructor(llmClient, timeoutMs = 120000) {
+  constructor(llmClient, timeoutMs = TIMEOUTS.LLM.FIELD_CHECKER) {
     this.llm = llmClient;
     this.timeoutMs = timeoutMs; // 【v2.1.4-fix13】增加超时配置
   }

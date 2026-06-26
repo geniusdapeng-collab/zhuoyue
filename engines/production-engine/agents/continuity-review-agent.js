@@ -4,6 +4,7 @@
  */
 const { BaseAgent } = require('./base-agent');
 const { CrossEpisodeValidator } = require('./cross-episode-validator');
+const { TIMEOUTS } = require('../../../config/timeout-config');
 
 class ContinuityReviewAgent extends BaseAgent {
   constructor(options = {}) {
@@ -12,7 +13,7 @@ class ContinuityReviewAgent extends BaseAgent {
     this.crossEpisodeValidator = new CrossEpisodeValidator({
       llmEngine: this._getLLMEngine(),
       model: options.llmModel || 'kimi-k2p6',
-      timeout: options.llmTimeout || 120000,
+      timeout: options.llmTimeout || TIMEOUTS.LLM.CONTINUITY_REVIEW,
       ...options.crossEpisode
     });
   }

@@ -6,6 +6,8 @@
  */
 const path = require('path');
 
+const { TIMEOUTS } = require('../../../config/timeout-config');
+
 // 从环境变量读取模型配置，消除硬编码
 const DEFAULT_MODEL = process.env.STORMAXE_LLM_MODEL || 'kimi-k2p6';
 const DEFAULT_FAST_MODEL = process.env.STORMAXE_LLM_FAST_MODEL || DEFAULT_MODEL;
@@ -28,7 +30,7 @@ function loadLLMEngine(model, maxTokens) {
 class BaseAgent {
   constructor(options = {}) {
     this.name = options.name || 'BaseAgent';
-    this.llmTimeout = options.llmTimeout || 300000; // 单次调用上限 5 分钟（足以覆盖最慢的 VisualLanguage 258s）
+    this.llmTimeout = options.llmTimeout || TIMEOUTS.LLM.BASE_AGENT;
     this.llmMaxRetries = options.llmMaxRetries ?? 2; // 重试收敛到 2 次（原 3 次是隐藏时间炸弹）
     this.llmModel = options.llmModel || DEFAULT_MODEL; // 修复：用环境变量
     this.llmMaxTokens = options.llmMaxTokens || 16000;
