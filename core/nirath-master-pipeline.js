@@ -1,14 +1,29 @@
 /**
- * Nirath Master Pipeline v1.1
- * 世界级IP短片生成引擎主链路入口
- *
- * 🔥 P0-固化原则:每次预生产必须走全链路 + 各环节最新版
+ * Nirath Master Pipeline v1.1 → 商业广告大片制作系统
+ * 全球顶尖商业广告片AI制作平台核心引擎
+ * 
+ * 🔥 系统定位: 商业广告大片制作系统
+ * 🔥 核心价值: 让品牌方用10%的成本，获得90%好莱坞级广告片效果
+ * 🔥 Slogan: 每一条片子，都是大片
+ * 
+ * P0-固化原则:每次预生产必须走全链路 + 各环节最新版
  * - 每次执行 = 全新执行,无视历史。清理旧输出 → 跑完整链路 → 全新数据 → 当前版本
  * - 预生产不是生产,是测试。测试就要用最新代码、全新数据、完整链路
  * - 禁止复用旧输出、禁止跳过环节、禁止用历史数据替代重新生成
  * - 即使同一任务反复测试,每次也必须用最新系统版本重新跑完整链路
  * - 违反 = 系统级错误,立即上报队长
- *
+ * 
+ * v6.7.0: 商业广告大片制作系统完整版
+ * - 4K画质规格系统 (ResolutionSpec)
+ * - 广告策略引擎 (CommercialMode) - Hook→Problem→Solution→Proof→CTA
+ * - 品牌调性注入系统 (BrandIdentity)
+ * - 产品卖点可视化引擎 (ProductUSPVisualizer)
+ * - 4K画质工坊 (PremiumEnhancer)
+ * - 电影级运镜指导 (CinematicCameraSystem)
+ * - 后期特效工作室 (VFXSystem)
+ * - 声音设计工作室 (AudioEngine)
+ * - 广告合规审查官 (QualityGatePro)
+ * 
  * v6.5.13: generic模式修复
  * - 修复LLM返回"undefined"字符串导致scene字段丢失
  * - 修复五要素注入残留Nirath痕迹(主角主动性/情感弧线/成长转变)

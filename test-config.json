@@ -1,0 +1,18 @@
+{
+  "name": "CleanMaster X5 智能扫地机器人",
+  "duration": 30,
+  "resolution": "4K-UHD",
+  "brand": "CleanMaster",
+  "brandColor": "#0066FF",
+  "sellingPoints": [
+    "AI智能避障，精准识别100种障碍物",
+    "LDS激光导航，建图精准度±2cm",
+    "超静音设计，噪音低至55dB",
+    "180分钟超长续航，一次清扫300㎡",
+    "极简设计，荣获红点设计大奖"
+  ],
+  "targetAudience": "25-40岁城市白领",
+  "platform": "tv",
+  "creativeIntensity": 0.85,
+  "style": "tech + lifestyle"
+}
