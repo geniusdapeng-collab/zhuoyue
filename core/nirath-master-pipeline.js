@@ -4315,10 +4315,12 @@ ${isNirath
 
   // ========== Stage 7.5: 片头自动生成(v3.0-patch5系统集成)==========
   async stageOpeningGeneration(input, storyboard, characters) {
-    // 🔥 v6.5.66-fix: 通用模式也支持片头(当 input.opening.enabled=true 时)
+    // v6.6.15-fix: 默认启用片头，只有明确禁用时才跳过
     const openingConfig = input.opening || {};
-    if (this.mode !== 'nirath' && !openingConfig.enabled) {
-      this.log('STAGE-7.5', '⏭️ 通用模式且未启用片头,跳过片头生成');
+    const shouldSkip = openingConfig.enabled === false; // 只有明确false才跳过
+    
+    if (shouldSkip) {
+      this.log('STAGE-7.5', '⏭️ 片头已明确禁用,跳过片头生成');
       return null;
     }
 

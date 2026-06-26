@@ -44,6 +44,7 @@ class ZhuoyueFieldAdapter {
 
   /**
    * 将卓越系统 shot 转换为25字段格式 (用于检查)
+   * v6.6.15-fix: 补全所有25字段映射，避免检查遗漏
    */
   to25FieldFormat(shot) {
     if (!shot) return null;
@@ -54,33 +55,47 @@ class ZhuoyueFieldAdapter {
       shot_type: shot.type || 'standard',
       prompt: shot.prompt || '',
       
-      // 将 prompt 内容映射到其他相关字段（用于全面检查）
-      baseline: shot.prompt || '',
+      // 视觉字段
+      scene: shot.scene || '',
+      action: shot.action || shot.primary_action || '',
+      character: shot.character || shot.characterRef || '',
+      camera_movement: shot.cameraMovement?.description || shot.cameraString || '',
+      lighting: shot.lighting?.description || shot.lightingString || '',
+      mood: shot.mood || shot.emotionPhase || '',
+      
+      // 音频字段
+      audio: shot.audioLayerString || shot.audio_description || '',
+      transition: shot.timelineString || '',
+      
+      // 风格字段
+      negative: shot.negativePrompt || '',
+      color_palette: shot.colorScience || '',
+      depth_of_field: shot.physicsLayer?.depthOfField || '',
+      
+      // 角色字段
+      portraits: Array.isArray(shot.referenceImages) ? shot.referenceImages.join(',') : '',
+      consistency: shot.characterCard || '',
+      costume: shot.costume || '',
+      makeup: shot.makeup || '',
+      
+      // 构图字段
+      composition: shot.spatial_composition || '',
+      props: Array.isArray(shot.props) ? shot.props.join(',') : '',
+      
+      // 时间字段
+      timeline: shot.timelineString || '',
+      pacing: shot.duration ? `${shot.duration}s` : '',
+      
+      // 约束字段
+      bright_constraint: '', // 从prompt中提取
+      character_constraint: '', // 从prompt中提取
+      
+      // 导演指令
       director_instruction: this._extractDirectorHint(shot),
       constraint: this._extractConstraint(shot),
       
-      // 默认空值（避免检查报错）
-      scene: '',
-      action: '',
-      character: '',
-      camera_movement: '',
-      lighting: '',
-      mood: '',
-      negative: '',
-      audio: '',
-      transition: '',
-      portraits: '',
-      consistency: '',
-      color_palette: '',
-      depth_of_field: '',
-      timeline: '',
-      bright_constraint: '',
-      character_constraint: '',
-      costume: '',
-      props: '',
-      pacing: '',
-      makeup: '',
-      composition: '',
+      // 基线（用于对比）
+      baseline: shot.prompt || '',
       
       // 标记为已适配
       _adapted: true,
@@ -92,15 +107,51 @@ class ZhuoyueFieldAdapter {
 
   /**
    * 将25字段修复结果转换回卓越系统格式 (用于回写)
+   * v6.6.15-fix: 回写所有修复后的字段，不只是prompt
    */
   from25FieldFormat(shot25, originalShot) {
     if (!shot25 || !originalShot) return originalShot;
 
     const repaired = { ...originalShot };
 
-    // 只修复 prompt 字段（卓越系统的主要字段）
-    if (shot25.prompt && shot25.prompt !== originalShot.prompt) {
-      repaired.prompt = shot25.prompt;
+    // 修复所有25个字段
+    const fieldMappings = {
+      'prompt': 'prompt',
+      'scene': 'scene',
+      'action': 'action',
+      'character': 'character',
+      'camera_movement': 'cameraString',
+      'lighting': 'lightingString',
+      'mood': 'mood',
+      'negative': 'negativePrompt',
+      'audio': 'audioLayerString',
+      'transition': 'timelineString',
+      'portraits': 'referenceImages',
+      'consistency': 'characterCard',
+      'color_palette': 'colorScience',
+      'depth_of_field': 'physicsLayer',
+      'timeline': 'timelineString',
+      'bright_constraint': 'brightConstraint',
+      'character_constraint': 'characterConstraint',
+      'costume': 'costume',
+      'props': 'props',
+      'pacing': 'pacing',
+      'makeup': 'makeup',
+      'composition': 'spatialComposition',
+      'director_instruction': 'directorStyle',
+      'constraint': 'constraints',
+      'baseline': 'baselinePrompt'
+    };
+
+    let hasRepair = false;
+    for (const [field25, fieldZy] of Object.entries(fieldMappings)) {
+      if (shot25[field25] && shot25[field25] !== originalShot[fieldZy]) {
+        repaired[fieldZy] = shot25[field25];
+        hasRepair = true;
+      }
+    }
+
+    if (hasRepair) {
       repaired._fieldQualityRepaired = true;
     }
 
