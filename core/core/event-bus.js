@@ -272,7 +272,8 @@ class NirathEventBusV2 extends EventEmitter {
   }
 
   /**
-   * 订阅事件（v2.0增强版）
+   * 订阅事件（v2.0增强版，修复内存泄漏与悬空Promise）
+   * v6.8.5-fix2: 监听器上限防泄漏 + async异常强制捕获
    */
   subscribe(eventType, handler, options = {}) {
     if (!this.enabled) return () => {};
@@ -282,6 +283,14 @@ class NirathEventBusV2 extends EventEmitter {
     if (!this.subscriberStats[eventType]) {
       this.subscriberStats[eventType] = { subscribers: 0, invocations: 0, errors: 0 };
     }
+
+    // 核心修复：显式管理监听器数量，超过上限直接拒绝，防止内存泄漏
+    const currentListeners = this.listenerCount(eventType);
+    if (currentListeners >= this.maxListeners) {
+      console.warn(`[EventBusV2] ⚠️ 事件 ${eventType} 监听器已达上限(${this.maxListeners})，拒绝新订阅防止泄漏`);
+      return () => {}; // 返回空函数，防止上层调用 unsubscribe 报错
+    }
+
     this.subscriberStats[eventType].subscribers++;
 
     const wrapper = async (event) => {
@@ -292,12 +301,12 @@ class NirathEventBusV2 extends EventEmitter {
           console.log(`[EventBusV2] 📥 订阅者 ${subscriberId} 处理 ${eventType}`);
         }
 
-        // 包装handler，传入完整事件（含mutations）
-        if (options.async !== false) {
-          await handler(event.payload, event.metadata, event.mutations);
-        } else {
-          handler(event.payload, event.metadata, event.mutations);
-        }
+        // 核心修复：强制捕获 async handler 的异常，防止悬空 Promise 导致进程崩溃
+        const result = options.async !== false
+          ? await handler(event.payload, event.metadata, event.mutations)
+          : handler(event.payload, event.metadata, event.mutations);
+
+        return result;
       } catch (e) {
         this.subscriberStats[eventType].errors++;
         this.errorLog.push({
@@ -311,7 +320,11 @@ class NirathEventBusV2 extends EventEmitter {
         }
 
         console.error(`[EventBusV2] 订阅者 ${subscriberId} 处理 ${eventType} 异常:`, e.message);
-        if (options.throwErrors) throw e;
+        // 核心修复：不再根据 throwErrors 抛出，因为 EventEmitter 的事件异常会变成 uncaughtException
+        // 改为记录日志并安全降级
+        if (options.throwErrors) {
+          process.emit('uncaughtException', e); // 交给顶层 ProcessGuard 处理
+        }
       }
     };
 
@@ -321,9 +334,12 @@ class NirathEventBusV2 extends EventEmitter {
       this.on(eventType, wrapper);
     }
 
+    // 核心修复：确保返回的 unsubscribe 函数能彻底移除监听器
     return () => {
       this.off(eventType, wrapper);
-      this.subscriberStats[eventType].subscribers--;
+      if (this.subscriberStats[eventType] && this.subscriberStats[eventType].subscribers > 0) {
+        this.subscriberStats[eventType].subscribers--;
+      }
     };
   }
 

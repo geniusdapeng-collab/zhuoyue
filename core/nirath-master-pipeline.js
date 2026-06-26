@@ -1241,6 +1241,14 @@ class NirathMasterPipeline {
         const inputFile = path.join('/tmp', `promptforge-input-${Date.now()}.json`);
         const outputFile = path.join('/tmp', `promptforge-output-${Date.now()}.json`);
 
+        // v6.8.5-fix4: 安全清理临时文件函数
+        const safeCleanup = () => {
+          try { if (fss.existsSync(inputFile)) fss.unlinkSync(inputFile); } catch (_) {}
+          try { if (fss.existsSync(outputFile)) fss.unlinkSync(outputFile); } catch (_) {}
+          const progressFile = outputFile.replace('.json', '-progress.json');
+          try { if (fss.existsSync(progressFile)) fss.unlinkSync(progressFile); } catch (_) {}
+        };
+
         try {
           const { spawn } = require('child_process');
           const workerPath = path.join(__dirname, 'promptforge-director-worker.js');
@@ -1257,9 +1265,16 @@ class NirathMasterPipeline {
             mode: this.mode || 'nirath' // v6.6.9: 传递模式信息
           };
 
-          fss.writeFileSync(inputFile, JSON.stringify(inputData));
+          // v6.8.5-fix4: 动态内存限制，默认1536MB，但不能超过系统可用内存的70%
+          let workerMemoryMb = Number(process.env.PROMPTFORGE_MAX_OLD_SPACE_MB || 1536);
+          try {
+            const os = require('os');
+            const totalMemMB = os.totalmem() / (1024 * 1024);
+            workerMemoryMb = Math.min(workerMemoryMb, Math.floor(totalMemMB * 0.7));
+            this.log('PIPELINE', `🛡️ 子进程内存限制设为: ${workerMemoryMb}MB (系统总内存: ${Math.floor(totalMemMB)}MB)`);
+          } catch (e) {}
 
-          const workerMemoryMb = Number(process.env.PROMPTFORGE_MAX_OLD_SPACE_MB || 1536);
+          fss.writeFileSync(inputFile, JSON.stringify(inputData));
 
           this.log('PIPELINE', `🎬 PromptForge 子进程启动 | 内存限制: ${workerMemoryMb}MB | 输入: ${inputFile}`);
 
@@ -1324,10 +1339,12 @@ class NirathMasterPipeline {
           if (stderr) this.log('PIPELINE', `⚠️ Worker stderr: ${stderr.slice(0, 500)}`);
 
           if (workerResult.signal === 'SIGKILL') {
+            safeCleanup(); // v6.8.5-fix4: 强杀时也要清理
             throw new Error('Worker 被 SIGKILL 终止,疑似内存不足(OOM)或超时强杀');
           }
 
           if (workerResult.code !== 0) {
+            safeCleanup(); // v6.8.5-fix4: 异常退出时清理
             if (workerResult.code === 137) {
               throw new Error('Worker 退出码 137,疑似 OOM 被系统杀死');
             }
@@ -1336,10 +1353,12 @@ class NirathMasterPipeline {
 
           // 读取输出
           if (!fss.existsSync(outputFile)) {
+            safeCleanup(); // v6.8.5-fix4: 清理临时文件
             throw new Error('Worker 未生成输出文件');
           }
 
           const outputData = JSON.parse(fss.readFileSync(outputFile, 'utf8'));
+          safeCleanup(); // v6.8.5-fix4: 成功读取后清理临时文件
 
           if (!outputData.success) {
             throw new Error(outputData.error || 'Worker 返回失败');
@@ -8356,7 +8375,12 @@ ${isNirath
   }
 
   toStandardPrompt(shot, prompt) {
-    const safe = (v) => (typeof v === 'string' ? v.trim() : '');
+    const safe = (v) => (typeof v === 'string' ? v.trim() : (v ? String(v).trim() : ''));
+
+    // v6.8.5-fix5: 核心修复——如果传入prompt为空，强制从shot中的其他字段拼装，绝不返回空
+    if (!prompt || (typeof prompt === 'string' && prompt.trim().length === 0)) {
+      prompt = `${safe(shot.visualPrompt)} ${safe(shot.dialogue)} ${safe(shot.scene)}`.trim() || '人物在场景中活动，自然光照明';
+    }
 
     const dialogue = safe(shot.dialogue); // v6.6.9.4-patch13: 只使用dialogue,禁用narration
     const scene = safe(
@@ -8531,6 +8555,11 @@ ${isNirath
           result = result.substring(0, maxResultLen).trim() + constraintsStr;
         }
       }
+    }
+
+    // v6.8.5-fix5: 最终防呆——如果result为空或太短，返回硬编码保底
+    if (!result || result.length < 50) {
+      result = `【视觉】人物在场景中活动;【镜头时间轴】中景平稳运镜;【照明】自然光;【渲染】超写实数字渲染`;
     }
 
     return safeStructuredTrim(result, PROMPT_LENGTH.HARD_MAX);

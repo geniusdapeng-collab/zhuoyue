@@ -46,18 +46,21 @@ class TokenBucket {
   }
 
   /**
-   * 获取令牌（异步，如果没有令牌则等待）
+   * 获取令牌（异步，修复浮点精度死锁）
+   * v6.8.5-fix1: 防御NaN/负数导致的高频空转
    */
   async acquire(count = 1, timeoutMs = 30000) {
     const startMs = Date.now();
     this.stats.totalRequests++;
 
+    // 防御：限制单次请求最大令牌数
+    const safeCount = Math.min(count, this.capacity);
+
     while (true) {
-      // 补充令牌
       this.refill();
 
-      if (this.tokens >= count) {
-        this.tokens -= count;
+      if (this.tokens >= safeCount) {
+        this.tokens -= safeCount;
         this.stats.accepted++;
         this.stats.waitTimeMs += Date.now() - startMs;
         return { granted: true, waitMs: Date.now() - startMs };
@@ -68,9 +71,18 @@ class TokenBucket {
         return { granted: false, waitMs: Date.now() - startMs, reason: 'timeout' };
       }
 
-      // 等待令牌补充
-      const waitMs = Math.ceil((count - this.tokens) / this.refillRate * 1000);
-      await this.sleep(Math.min(waitMs, 100));
+      // 核心修复：安全计算等待时间，防止NaN/负数导致高频空转
+      const deficit = safeCount - this.tokens;
+      let waitMs = Math.ceil((deficit / this.refillRate) * 1000);
+
+      // 防御：NaN/负数/过小 → 强制最小值50ms
+      if (isNaN(waitMs) || waitMs <= 0) {
+        waitMs = 50;
+      } else if (waitMs > 2000) {
+        waitMs = 2000; // 单次等待最多2秒，防止长时间阻塞
+      }
+
+      await this.sleep(waitMs);
     }
   }
 

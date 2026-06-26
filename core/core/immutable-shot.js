@@ -127,18 +127,86 @@ class ImmutableShot {
   }
 
   /**
-   * 深度克隆
+   * 深度克隆（修复复杂对象丢失问题）
+   * v6.8.5-fix3: 支持Date/RegExp/Buffer/Set/Map/自定义类实例
    */
   deepClone(obj) {
     if (obj === null || typeof obj !== 'object') return obj;
-    if (obj instanceof Date) return new Date(obj);
-    if (Array.isArray(obj)) return obj.map(item => this.deepClone(item));
-
-    const cloned = {};
-    for (const key of Object.keys(obj)) {
-      cloned[key] = this.deepClone(obj[key]);
-    }
-    return cloned;
+    
+    // 使用WeakMap记录已克隆对象，彻底解决循环引用
+    const seen = new WeakMap();
+    
+    const clone = (value) => {
+      if (value === null || typeof value !== 'object') return value;
+      if (typeof value === 'function') return undefined; // 不拷贝函数
+      
+      // 如果已经克隆过，直接返回引用，防止死循环
+      if (seen.has(value)) return seen.get(value);
+      
+      // 保留Date对象
+      if (value instanceof Date) return new Date(value.getTime());
+      
+      // 保留RegExp对象
+      if (value instanceof RegExp) return new RegExp(value.source, value.flags);
+      
+      // 保留Buffer
+      if (value instanceof Buffer) return Buffer.from(value);
+      
+      // 保留Set
+      if (value instanceof Set) {
+        const set = new Set();
+        seen.set(value, set);
+        for (const item of value) set.add(clone(item));
+        return set;
+      }
+      
+      // 保留Map
+      if (value instanceof Map) {
+        const map = new Map();
+        seen.set(value, map);
+        for (const [k, v] of value) map.set(clone(k), clone(v));
+        return map;
+      }
+      
+      // 保留自定义类实例的原型链（如TitleOverlay, PromptSection等）
+      if (value.constructor && value.constructor !== Object && value.constructor !== Array) {
+        try {
+          const cloned = Object.create(Object.getPrototypeOf(value));
+          seen.set(value, cloned);
+          for (const key of Object.getOwnPropertyNames(value)) {
+            const desc = Object.getOwnPropertyDescriptor(value, key);
+            if (desc.value !== undefined) {
+              desc.value = clone(desc.value);
+            }
+            Object.defineProperty(cloned, key, desc);
+          }
+          return cloned;
+        } catch (e) {
+          console.warn(`[ImmutableShot] 复杂对象克隆降级: ${value.constructor?.name}`);
+          // 降级为普通对象拷贝
+        }
+      }
+      
+      // 数组
+      if (Array.isArray(value)) {
+        const arr = [];
+        seen.set(value, arr);
+        for (let i = 0; i < value.length; i++) {
+          arr[i] = clone(value[i]);
+        }
+        return arr;
+      }
+      
+      // 普通对象
+      const cloned = {};
+      seen.set(value, cloned);
+      for (const key of Object.keys(value)) {
+        cloned[key] = clone(value[key]);
+      }
+      return cloned;
+    };
+    
+    return clone(obj);
   }
 
   /**
