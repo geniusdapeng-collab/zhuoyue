@@ -350,14 +350,16 @@ class SellingPointAdMapping {
 
   /**
    * 生成镜头分配方案（用于故事板）
+   * v6.8.2: 支持时长约束注入
    */
-  generateShotPlan(enrichedPoints, totalDuration) {
+  generateShotPlan(enrichedPoints, totalDuration, shotDurations = []) {
     const groups = this.groupByPhase(enrichedPoints);
     const plan = [];
     let currentTime = 0;
 
     // 按广告阶段顺序生成镜头
     const phaseOrder = ['hook', 'problem', 'solution', 'proof', 'cta'];
+    let shotIdx = 0;
     
     phaseOrder.forEach(phase => {
       const points = groups[phase];
@@ -369,13 +371,23 @@ class SellingPointAdMapping {
       const allocatedDuration = Math.round(totalDuration * phaseRatio);
 
       points.forEach((point, idx) => {
-        const shotDuration = Math.round(
-          allocatedDuration * (point.suggestedDuration / phaseDuration)
-        );
+        // v6.8.2: 如果提供了预设的镜头时长，使用预设值
+        let shotDuration;
+        if (shotDurations.length > 0 && shotIdx < shotDurations.length) {
+          shotDuration = shotDurations[shotIdx];
+        } else {
+          // 按比例分配
+          shotDuration = Math.round(
+            allocatedDuration * (point.suggestedDuration / phaseDuration)
+          );
+        }
+        
+        // 确保最小2秒
+        shotDuration = Math.max(2, shotDuration);
 
         plan.push({
           phase,
-          shotIndex: plan.length + 1,
+          shotIndex: shotIdx + 1,
           startTime: currentTime,
           duration: shotDuration,
           endTime: currentTime + shotDuration,
@@ -388,6 +400,7 @@ class SellingPointAdMapping {
         });
 
         currentTime += shotDuration;
+        shotIdx++;
       });
     });
 

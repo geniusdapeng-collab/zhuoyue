@@ -507,7 +507,27 @@ class NirathMasterPipeline {
         }
       }
       
-      this.log('INIT', '✅ 商品档案管理系统已加载');
+        // v6.8.2: 初始化时长约束系统
+        try {
+          const { DurationConstraintSystem } = require('../systems/duration-constraint');
+          this._modules.durationConstraint = new DurationConstraintSystem({
+            totalDuration: input.targetDuration || 30,
+            minTotalDuration: 25,
+            maxTotalDuration: 35,
+            minShotDuration: 2,
+            maxShotDuration: 10,
+            seedanceVersion: input.seedanceVersion || '2.0'
+          });
+          
+          const compatibility = this._modules.durationConstraint.getSeedanceCompatibility();
+          this.log('INIT', `✅ 时长约束系统已加载 | 总时长:25-35秒 | 单镜头:${compatibility.minShotDuration}-${compatibility.maxShotDuration}秒 | Seedance:${compatibility.version}`);
+          
+          if (compatibility.note) {
+            this.log('INIT', `  ℹ️ ${compatibility.note}`);
+          }
+        } catch (e) {
+          this.log('INIT', `⚠️ 时长约束系统加载失败: ${e.message}`);
+        }
       
       // v6.8.1: 初始化卖点深度映射系统
       try {
@@ -2192,13 +2212,53 @@ class NirathMasterPipeline {
         const { SellingPointAdMapping } = require('../systems/selling-point-ad-mapping');
         const mapper = new SellingPointAdMapping();
         
-        // 生成镜头分配方案
-        const shotPlan = mapper.generateShotPlan(input._enrichedSellingPoints, input.targetDuration || 30);
+        // v6.8.2: 使用时长约束系统生成总时长和镜头分配
+        let totalDuration = input.targetDuration || 30;
+        let shotDurations = [];
+        
+        if (this._modules.durationConstraint) {
+          // 使用时长约束系统生成合规的时长方案
+          const durationPlan = this._modules.durationConstraint.generateDurationPlan(
+            input._enrichedSellingPoints.length,
+            input._enrichedSellingPoints
+          );
+          totalDuration = durationPlan.totalDuration;
+          shotDurations = durationPlan.shotDurations;
+          
+          // 验证方案
+          const validation = this._modules.durationConstraint.validatePlan(durationPlan);
+          if (!validation.valid) {
+            this.log('STAGE-5', `⚠️ 时长方案验证失败: ${validation.issues.join(', ')}`);
+          }
+          
+          // 生成时长报告
+          const report = this._modules.durationConstraint.generateReport(durationPlan);
+          this.log('STAGE-5', '\n' + report);
+          
+          // 保存到输入中供后续使用
+          input._durationPlan = durationPlan;
+        }
+        
+        // 生成镜头分配方案（使用时长约束后的总时长）
+        const shotPlan = mapper.generateShotPlan(input._enrichedSellingPoints, totalDuration);
+        
+        // v6.8.2: 用时长约束系统的镜头时长覆盖默认分配
+        if (shotDurations.length > 0 && shotPlan.length === shotDurations.length) {
+          shotPlan.forEach((shot, idx) => {
+            shot.duration = shotDurations[idx];
+            shot.endTime = shot.startTime + shotDurations[idx];
+            // 重新计算后续镜头的startTime
+            if (idx > 0) {
+              shot.startTime = shotPlan[idx - 1].endTime;
+              shot.endTime = shot.startTime + shot.duration;
+            }
+          });
+        }
         
         // 将卖点信息注入到剧本场景
         input._shotPlan = shotPlan;
         
-        this.log('STAGE-5', `🎯 卖点驱动剧本生成 | ${shotPlan.length}个镜头 | 基于${input._enrichedSellingPoints.length}个卖点`);
+        this.log('STAGE-5', `🎯 卖点驱动剧本生成 | ${shotPlan.length}个镜头 | 总时长:${totalDuration}秒 | 基于${input._enrichedSellingPoints.length}个卖点`);
         
         // 为每个场景关联对应的卖点和镜头计划
         if (script.scenes && script.scenes.length > 0) {
@@ -2213,8 +2273,9 @@ class NirathMasterPipeline {
               scene._cameraMove = matchedShot.cameraMove;
               scene._vfx = matchedShot.vfx;
               scene._audio = matchedShot.audio;
+              scene._duration = matchedShot.duration; // v6.8.2: 注入时长
               
-              this.log('STAGE-5', `  Scene ${scene.id} [${scene._adPhase}] | ${matchedShot.sellingPoint.type} | 运镜:${scene._cameraMove} | 特效:${scene._vfx?.join?.('+') || scene._vfx}`);
+              this.log('STAGE-5', `  Scene ${scene.id} [${scene._adPhase}] ${matchedShot.duration}s | ${matchedShot.sellingPoint.type} | 运镜:${scene._cameraMove} | 特效:${scene._vfx?.join?.('+') || scene._vfx}`);
             }
           });
         }
@@ -6979,6 +7040,40 @@ ${isNirath
         } catch (e) {
           // AB-roll增强失败不影响主流程
           this.log('STAGE-11', `  ⚠️ ${shot.id} AB-roll增强失败: ${e.message}`);
+        }
+      }
+
+      // v6.8.2: 时长约束注入（如果存在时长计划）
+      if (input._durationPlan) {
+        try {
+          const durationPlan = input._durationPlan;
+          
+          // 为当前镜头注入时长
+          if (shot._duration) {
+            shot.duration = shot._duration;
+            shot.prompt += ` | 【时长】${shot._duration}秒`;
+            this.log('STAGE-11', `  ⏱️ 时长约束: ${shot.id} = ${shot._duration}秒`);
+          }
+          
+          // 验证总时长
+          const allDurations = stages.render?.map(s => s.duration || s._duration || 5) || [];
+          const totalDuration = allDurations.reduce((a, b) => a + b, 0);
+          
+          if (totalDuration > 0 && this._modules.durationConstraint) {
+            const validation = this._modules.durationConstraint.validatePlan({
+              totalDuration,
+              shotCount: allDurations.length,
+              shotDurations: allDurations
+            });
+            
+            if (!validation.valid) {
+              this.log('STAGE-11', `  ⚠️ 总时长验证: ${totalDuration}秒 | 问题: ${validation.issues.join(', ')}`);
+            } else {
+              this.log('STAGE-11', `  ✅ 总时长验证通过: ${totalDuration}秒`);
+            }
+          }
+        } catch (e) {
+          this.log('STAGE-11', `  ⚠️ 时长约束注入失败: ${e.message}`);
         }
       }
 
