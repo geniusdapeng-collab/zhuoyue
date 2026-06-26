@@ -235,6 +235,10 @@ class MemoryMonitor {
 class LLMBatchManager extends EventEmitter {
   constructor(options = {}) {
     super();
+    
+    // v6.6.17-fix: 设置监听器上限，防止内存泄漏
+    this.setMaxListeners(100);
+    
     this.maxConcurrency = options.maxConcurrency || 3;  // 火山引擎限制
     this.maxRetries = options.maxRetries || 3;
     this.maxMemoryMB = options.maxMemoryMB || 1024;
@@ -253,11 +257,48 @@ class LLMBatchManager extends EventEmitter {
     this.successRate = 1.0;
     this.adaptiveMaxConcurrency = this.maxConcurrency;
     this._processing = false;  // 锁，防止并发进入
+    
+    // v6.6.17-fix: 监听器清理定时器
+    this._cleanupInterval = null;
+    this._initCleanup();
 
     // 自适应调整
     if (this.adaptiveConcurrency) {
       this.adaptiveInterval = setInterval(() => this.adjustConcurrency(), 30000);  // 30秒调整一次
     }
+  }
+  
+  /**
+   * v6.6.17-fix: 初始化监听器清理机制
+   */
+  _initCleanup() {
+    // 每60秒检查一次监听器数量
+    this._cleanupInterval = setInterval(() => {
+      const listenerCount = this.listenerCount('request.completed') + 
+                           this.listenerCount('request.failed') +
+                           this.listenerCount('request.started') +
+                           this.listenerCount('request.queued');
+      if (listenerCount > 50) {
+        console.warn(`[BatchManager] ⚠️ 监听器过多(${listenerCount})，执行清理`);
+        this.removeAllListeners();
+      }
+    }, 60000);
+  }
+  
+  /**
+   * v6.6.17-fix: 销毁时清理资源
+   */
+  destroy() {
+    if (this._cleanupInterval) {
+      clearInterval(this._cleanupInterval);
+      this._cleanupInterval = null;
+    }
+    if (this.adaptiveInterval) {
+      clearInterval(this.adaptiveInterval);
+      this.adaptiveInterval = null;
+    }
+    this.removeAllListeners();
+    this.running.clear();
   }
 
   /**
