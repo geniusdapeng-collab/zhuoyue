@@ -508,6 +508,28 @@ class NirathMasterPipeline {
       }
       
       this.log('INIT', '✅ 商品档案管理系统已加载');
+      
+      // v6.8.1: 初始化卖点深度映射系统
+      try {
+        const { SellingPointAdMapping } = require('../systems/selling-point-ad-mapping');
+        this._modules.sellingPointMapping = new SellingPointAdMapping();
+        
+        // 如果已有商品档案，立即丰富卖点
+        if (this._modules.productArchive && input?.productId) {
+          const rawPoints = await this._modules.productArchive.extractSellingPoints(input.productId);
+          this._modules.enrichedSellingPoints = this._modules.sellingPointMapping.enrichAll(rawPoints);
+          
+          // 生成阶段分配报告
+          const phaseReport = this._modules.sellingPointMapping.generatePhaseReport(this._modules.enrichedSellingPoints);
+          this.log('INIT', `✅ 卖点深度映射完成 | ${this._modules.enrichedSellingPoints.length}个卖点 | 阶段分布: Hook=${phaseReport.phaseDistribution.hook?.count||0} Problem=${phaseReport.phaseDistribution.problem?.count||0} Solution=${phaseReport.phaseDistribution.solution?.count||0} Proof=${phaseReport.phaseDistribution.proof?.count||0} CTA=${phaseReport.phaseDistribution.cta?.count||0}`);
+          
+          // 将丰富后的卖点注入到输入中，供后续Stage使用
+          input._enrichedSellingPoints = this._modules.enrichedSellingPoints;
+          input._phaseReport = phaseReport;
+        }
+      } catch (e) {
+        this.log('INIT', `⚠️ 卖点深度映射加载失败: ${e.message}`);
+      }
     } catch (e) {
       this.log('INIT', `⚠️ 商品档案系统加载失败: ${e.message}`);
     }
@@ -2162,6 +2184,43 @@ class NirathMasterPipeline {
     } catch (e) {
       // v6.6.9.4-fix: LLM失败不再降级，直接报错终止
       throw new Error(`STAGE-5 剧本生成失败: ${e.message} | 已触发重试机制但仍失败，终止预生产`);
+    }
+
+    // v6.8.1: 如果存在丰富的卖点信息，注入到剧本场景中
+    if (input._enrichedSellingPoints && input._enrichedSellingPoints.length > 0) {
+      try {
+        const { SellingPointAdMapping } = require('../systems/selling-point-ad-mapping');
+        const mapper = new SellingPointAdMapping();
+        
+        // 生成镜头分配方案
+        const shotPlan = mapper.generateShotPlan(input._enrichedSellingPoints, input.targetDuration || 30);
+        
+        // 将卖点信息注入到剧本场景
+        input._shotPlan = shotPlan;
+        
+        this.log('STAGE-5', `🎯 卖点驱动剧本生成 | ${shotPlan.length}个镜头 | 基于${input._enrichedSellingPoints.length}个卖点`);
+        
+        // 为每个场景关联对应的卖点和镜头计划
+        if (script.scenes && script.scenes.length > 0) {
+          script.scenes.forEach((scene, idx) => {
+            const matchedShot = shotPlan.find(s => s.shotIndex === idx + 1);
+            if (matchedShot && matchedShot.sellingPoint) {
+              scene._sellingPoint = matchedShot.sellingPoint;
+              scene._promptInjection = matchedShot._promptInjection || 
+                mapper.generatePromptInjection(matchedShot.sellingPoint);
+              scene._adPhase = matchedShot.phase;
+              scene._shotType = matchedShot.shotType;
+              scene._cameraMove = matchedShot.cameraMove;
+              scene._vfx = matchedShot.vfx;
+              scene._audio = matchedShot.audio;
+              
+              this.log('STAGE-5', `  Scene ${scene.id} [${scene._adPhase}] | ${matchedShot.sellingPoint.type} | 运镜:${scene._cameraMove} | 特效:${scene._vfx?.join?.('+') || scene._vfx}`);
+            }
+          });
+        }
+      } catch (e) {
+        this.log('STAGE-5', `⚠️ 卖点驱动剧本注入失败: ${e.message}`);
+      }
     }
 
     script.scenes = normalizeDialogueShots(script.scenes || []);
@@ -6920,6 +6979,68 @@ ${isNirath
         } catch (e) {
           // AB-roll增强失败不影响主流程
           this.log('STAGE-11', `  ⚠️ ${shot.id} AB-roll增强失败: ${e.message}`);
+        }
+      }
+
+      // v6.8.1: 卖点驱动渲染增强（从场景中的卖点信息注入）
+      if (shot._sellingPoint) {
+        try {
+          const sp = shot._sellingPoint;
+          
+          // 1. 注入运镜策略
+          if (sp.cameraMove && this.modules.cinematicCamera) {
+            const cameraMove = this.modules.cinematicCamera.selectCameraMove({
+              shotType: sp.shotType,
+              phase: sp.adPhase,
+              duration: shot.duration || 5
+            });
+            if (cameraMove) {
+              shot.prompt += ` | 【运镜】${cameraMove.description}(${cameraMove.name})`;
+              this.log('STAGE-11', `  🎬 卖点运镜: ${sp.type} → ${cameraMove.name}`);
+            }
+          }
+          
+          // 2. 注入特效策略
+          if (sp.vfxPrimary && this.modules.vfxSystem) {
+            const effects = sp.vfxPrimary.map(eff =
+              this.modules.vfxSystem.selectEffects({ shotType: sp.shotType, phase: sp.adPhase })
+                .find(e =
+> e.name === eff)
+            ).filter(Boolean);
+            
+            if (effects.length > 0) {
+              shot.prompt += ` | 【特效】${effects.map(e =
+> e.description).join(' + ')}`;
+              this.log('STAGE-11', `  💫 卖点特效: ${sp.type} → ${effects.map(e =
+> e.name).join('+')}`);
+            }
+          }
+          
+          // 3. 注入音频策略
+          if (sp.audioBGM && this.modules.audioEngine) {
+            const audioPrompt = this.modules.audioEngine.generateAudioPrompt({
+              shotType: sp.shotType,
+              phase: sp.adPhase
+            }, { 
+              music: { 
+                name: sp.audioBGM, 
+                bpm: this.modules.audioEngine.musicStyles[sp.audioBGM]?.bpm || 100 
+              }
+            });
+            if (audioPrompt) {
+              shot.prompt += ` | ${audioPrompt}`;
+              this.log('STAGE-11', `  🎵 卖点音频: ${sp.type} → ${sp.audioBGM}`);
+            }
+          }
+          
+          // 4. 注入情绪曲线
+          if (sp.emotionCurve) {
+            shot.prompt += ` | 【情绪】${sp.emotionCurve.start}→${sp.emotionCurve.peak}→${sp.emotionCurve.end}`;
+          }
+          
+          shot._sellingPointEnhanced = true;
+        } catch (e) {
+          this.log('STAGE-11', `  ⚠️ 卖点驱动增强失败: ${e.message}`);
         }
       }
 
