@@ -475,6 +475,42 @@ class NirathMasterPipeline {
         this.log('INIT', `⚠️ 商业广告片系统加载失败: ${e.message}`);
       }
     }
+    
+    // v6.8.0: 初始化商品档案管理系统
+    try {
+      const { ProductArchiveSystem } = require('../systems/product-archive-system');
+      const { ProductArchiveAdIntegration } = require('../systems/product-archive-ad-integration');
+      
+      this._modules.productArchive = new ProductArchiveSystem({
+        dbPath: input?.productArchivePath || './product-archives'
+      });
+      await this._modules.productArchive.init();
+      
+      // 如果输入包含商品档案ID，自动加载
+      if (input?.productId) {
+        const adIntegration = new ProductArchiveAdIntegration(
+          this._modules.productArchive, 
+          this
+        );
+        this._modules.archiveAdIntegration = adIntegration;
+        
+        // 从商品档案生成广告配置
+        const archiveConfig = await adIntegration.generateCommercialFromArchive(
+          input.productId, 
+          input
+        );
+        
+        if (archiveConfig.success) {
+          // 合并商品档案配置到输入
+          Object.assign(input, archiveConfig.adConfig);
+          this.log('INIT', `✅ 商品档案已加载: ${archiveConfig.productName} | 卖点:${archiveConfig.sellingPoints.length}个 | 图片:${archiveConfig.images.length}张`);
+        }
+      }
+      
+      this.log('INIT', '✅ 商品档案管理系统已加载');
+    } catch (e) {
+      this.log('INIT', `⚠️ 商品档案系统加载失败: ${e.message}`);
+    }
 
     // 【v6.2-patch47】初始化美术布景模块(可选)
     if (SetDesignModule) {
