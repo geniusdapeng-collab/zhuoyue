@@ -1,0 +1,22 @@
+{
+  "name": "render-pipeline-guard-skill",
+  "version": "1.0.0",
+  "description": "Render Pipeline Guard + Pipeline Integrity Validator 二合一Skill。强制检查渲染流水线提交条件，阻塞非法提交，反向验证输出完整性。",
+  "enabled": true,
+  "dependencies": ["prompt-guardian-skill"],
+  "author": "协同进化引擎",
+  "source": "zhuoyue",
+  "category": "production",
+  "tags": ["pipeline", "guard", "integrity", "validation", "render"],
+  "io": {
+    "input": [
+      { "name": "payload", "type": "object", "required": true, "description": "渲染提交payload" }
+    ],
+    "output": [
+      { "name": "pass", "type": "boolean", "description": "是否通过检查" },
+      { "name": "checks", "type": "array", "description": "各项检查结果" },
+      { "name": "blocked", "type": "boolean", "description": "是否被阻塞" },
+      { "name": "fixInstructions", "type": "string[]", "description": "修复指令列表" }
+    ]
+  }
+}

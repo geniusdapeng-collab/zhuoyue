@@ -1,0 +1,25 @@
+{
+  "name": "commercial-ad-skill-orchestrator",
+  "version": "1.0.0",
+  "description": "商业广告片 Skill 编排系统 — 6 Skill + Saga 编排器 + EventBus",
+  "main": "infrastructure/index.js",
+  "scripts": {
+    "start": "node infrastructure/index.js",
+    "validate": "node skills/validate-skills.js",
+    "validate:p4": "node skills/validate-skills-p4.js",
+    "validate:p5": "node skills/validate-skills-p5.js",
+    "validate:p6": "node skills/validate-skills-p6.js",
+    "healthcheck": "node deploy/healthcheck.js",
+    "test": "npm run validate && npm run validate:p4 && npm run validate:p5 && npm run validate:p6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "commercial-ad",
+    "skill-orchestrator",
+    "saga-pattern",
+    "event-bus"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "prompt-guardian-skill",
+  "version": "1.0.0",
+  "description": "Prompt Guardian + StandardV3 + Standardizer 三合一Skill。自动修复Prompt缺陷、标准化格式、合规性检查。",
+  "enabled": true,
+  "dependencies": [],
+  "author": "协同进化引擎",
+  "source": "zhuoyue",
+  "category": "pre_production",
+  "tags": ["prompt", "guardian", "standardization", "compliance"],
+  "io": {
+    "input": [
+      { "name": "prompt", "type": "string", "required": false, "description": "单个Prompt文本" },
+      { "name": "prompts", "type": "string[]", "required": false, "description": "Prompt数组（取第一个）" }
+    ],
+    "output": [
+      { "name": "prompt", "type": "string", "description": "修复后的Prompt" },
+      { "name": "fixLog", "type": "array", "description": "修复记录" },
+      { "name": "fixed", "type": "boolean", "description": "是否发生修复" }
+    ]
+  }
+}

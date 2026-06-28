@@ -1,0 +1,22 @@
+{
+  "name": "post-production-skill",
+  "version": "1.0.0",
+  "description": "后期制作管线Skill。合并片段、横版转换、字幕生成、音乐合成、多版本输出。",
+  "enabled": true,
+  "dependencies": ["commercial-mode-skill"],
+  "author": "协同进化引擎",
+  "source": "zhuoyue",
+  "category": "post_production",
+  "tags": ["post-production", "subtitle", "music", "merge", "export"],
+  "io": {
+    "input": [
+      { "name": "video", "type": "string|string[]", "required": true, "description": "原始视频路径或路径数组" },
+      { "name": "brandInfo", "type": "object", "required": false, "description": "品牌信息" },
+      { "name": "audio", "type": "object", "required": false, "description": "音频素材" }
+    ],
+    "output": [
+      { "name": "video", "type": "string", "description": "成品视频路径" },
+      { "name": "postProductionApplied", "type": "boolean", "description": "是否应用后期制作" }
+    ]
+  }
+}

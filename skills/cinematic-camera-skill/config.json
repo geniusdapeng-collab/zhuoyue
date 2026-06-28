@@ -1,0 +1,24 @@
+{
+  "name": "cinematic-camera-skill",
+  "version": "1.0.0",
+  "description": "电影级运镜控制Skill。封装v2（规则驱动）和v4（LLM驱动）两套运镜系统，根据配置自动选择版本。v4支持镜头内时间轴生成。",
+  "enabled": true,
+  "dependencies": [],
+  "author": "协同进化引擎",
+  "source": "zhuoyue",
+  "category": "production",
+  "tags": ["camera", "cinematography", "movement", "timeline", "shot"],
+  "io": {
+    "input": [
+      { "name": "scene", "type": "string", "required": false, "description": "场景描述" },
+      { "name": "emotion", "type": "string", "required": false, "description": "情感基调" },
+      { "name": "duration", "type": "number", "required": false, "description": "镜头时长" },
+      { "name": "shotType", "type": "string", "required": false, "description": "景别类型" },
+      { "name": "cameraVersion", "type": "string", "required": false, "description": "运镜版本(v2/v4)" }
+    ],
+    "output": [
+      { "name": "cameraPlan", "type": "object", "description": "运镜方案" },
+      { "name": "version", "type": "string", "description": "使用的版本" }
+    ]
+  }
+}

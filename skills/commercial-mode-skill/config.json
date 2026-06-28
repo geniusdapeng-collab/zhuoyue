@@ -1,0 +1,27 @@
+{
+  "name": "commercial-mode-skill",
+  "version": "1.0.0",
+  "description": "商业广告片专业模式Skill。生成广告结构(Hook→Problem→Solution→Proof→CTA)、增强产品镜头提示词、标记镜头阶段、输出产品专属运镜。",
+  "enabled": true,
+  "dependencies": [],
+  "author": "协同进化引擎",
+  "source": "zhuoyue",
+  "category": "pre_production",
+  "tags": ["commercial", "advertisement", "product", "brand", "ad-structure"],
+  "io": {
+    "input": [
+      { "name": "product", "type": "string", "required": true, "description": "产品名称" },
+      { "name": "brand", "type": "string", "required": true, "description": "品牌名称" },
+      { "name": "sellingPoints", "type": "string[]", "required": false, "description": "卖点列表" },
+      { "name": "duration", "type": "number", "required": false, "description": "广告时长(秒)" },
+      { "name": "platform", "type": "string", "required": false, "description": "投放平台" },
+      { "name": "targetAudience", "type": "string", "required": false, "description": "目标受众" },
+      { "name": "brandColor", "type": "string", "required": false, "description": "品牌色" }
+    ],
+    "output": [
+      { "name": "structure", "type": "object", "description": "广告结构(Hook/Problem/Solution/Proof/CTA)" },
+      { "name": "brandRules", "type": "object", "description": "品牌规范规则" },
+      { "name": "sellingPointStrategies", "type": "array", "description": "卖点策略列表" }
+    ]
+  }
+}

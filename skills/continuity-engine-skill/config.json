@@ -1,0 +1,22 @@
+{
+  "name": "continuity-engine-skill",
+  "version": "1.0.0",
+  "description": "镜头连续性检查Skill。检查相邻镜头转场连贯性、运镜一致性、景别合法性，推荐合法转场类型。",
+  "enabled": true,
+  "dependencies": ["cinematic-camera-skill"],
+  "author": "协同进化引擎",
+  "source": "zhuoyue",
+  "category": "post_production",
+  "tags": ["continuity", "transition", "shot", "validation"],
+  "io": {
+    "input": [
+      { "name": "shots", "type": "array", "required": true, "description": "镜头序列数组" }
+    ],
+    "output": [
+      { "name": "report", "type": "object", "description": "连续性分析报告" },
+      { "name": "score", "type": "number", "description": "连贯性评分(0-100)" },
+      { "name": "issues", "type": "array", "description": "问题列表" },
+      { "name": "status", "type": "string", "description": "状态(良好/合格/需修复)" }
+    ]
+  }
+}
