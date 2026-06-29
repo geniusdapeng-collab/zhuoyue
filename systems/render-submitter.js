@@ -18,7 +18,7 @@ class RenderSubmitter {
     this.apiUrl =
       options.apiUrl ||
       'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks';
-    this.model = options.model || 'ep-20260518004622-jp46s';
+    this.model = options.model || '003cENDPOINT_STD003e';
     this.apiKey = options.apiKey || requireEnv('VOLCENGINE_ARK_API_KEY');
     this.requireReferenceImages =
       options.requireReferenceImages !== undefined
