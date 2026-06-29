@@ -95,7 +95,7 @@ node run-preproduction.js
 
 ## 👤 关于作者
 
-我是 **Genius（大鹏）**，AI 产品经理与 AI 内容自动化生产专家，从业十余年。
+我是 **Genius（Creator）**，AI 产品经理与 AI 内容自动化生产专家，从业十余年。
 
 现任阿里巴巴千问事业群 AI 产品经理，曾任职阿里巴巴、阿里云及蚂蚁金服，主导过数亿用户产品的全链路 0-1 建设——覆盖 Harness 架构、Multi-Agent 协作与 Workflow 编排的 AI 应用体系。2018 年带领阿里云算法团队将 AI 流水线引入媒体内容生产。
 
