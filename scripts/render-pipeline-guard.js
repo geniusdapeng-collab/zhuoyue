@@ -72,7 +72,7 @@ class RenderPipelineGuard {
         name: '服装锁定检查',
         check: (payload) => {
           const text = payload.content?.find(c => c.type === 'text')?.text || '';
-          const hasCharacter = /陈卓|小G|林警官|角色/.test(text);
+          const hasCharacter = /角色A|角色B|角色C|角色/.test(text);
           if (!hasCharacter) return { pass: true }; // 无角色=豁免
           const hasCostumeLock = /穿[警护白][服大褂]|身穿/.test(text);
           return {
@@ -303,7 +303,7 @@ if (require.main === module) {
   // 测试用例：有问题的Payload
   const badPayload = {
     content: [
-      { type: 'text', text: '16:9 | 陈卓站在健身房中，痛苦的表情' },
+      { type: 'text', text: '16:9 | 角色A站在健身房中，痛苦的表情' },
       { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,abc' } } // 缺少role
     ],
     generate_audio: false
@@ -318,7 +318,7 @@ if (require.main === module) {
   // 测试用例：正确的Payload
   const goodPayload = {
     content: [
-      { type: 'text', text: '16:9 | 穿警服的陈卓，佩戴警帽警徽，表情专注 | 【台词】横纹肌溶解，会导致肌肉不适' },
+      { type: 'text', text: '16:9 | 穿警服的角色A，佩戴警帽警徽，表情专注 | 【台词】横纹肌溶解，会导致肌肉不适' },
       { type: 'image_url', role: 'reference_image', image_url: { url: 'data:image/jpeg;base64,' + 'A'.repeat(1000) } }
     ],
     generate_audio: true

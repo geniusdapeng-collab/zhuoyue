@@ -3263,7 +3263,7 @@ ${isNirath
     if (!dialogue || typeof dialogue !== 'string') return '';
     
     // 检测是否包含结构化标签格式（分号分隔或竖杠分隔）
-    // 格式示例："陈卓; 独白; 平静; 大家好，我是陈卓; LIP_SYNC:YES"
+    // 格式示例："角色A; 独白; 平静; 大家好，我是角色A; LIP_SYNC:YES"
     const hasStructuredFormat = /^(.*?)[;|](.*?)[;|](.*?)[;|](.*?)[;|]/.test(dialogue);
     
     if (hasStructuredFormat) {

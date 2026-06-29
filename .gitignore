@@ -1,18 +1,104 @@
-# Generated assets
-characters/*/portraits/
-characters/*/portraits-v*/
-characters/*/reference-photos/
+# 卓越系统 Open Source .gitignore
+
+# ============================================
+# 1. 敏感信息与个人数据
+# ============================================
+.env
+.env.*
+!.env.example
+.gitconfig
+USER.md
+IDENTITY.md
+SOUL.md
+MEMORY.md
+AGENTS.md
+memory/
+memory_*/
+memorized_diary/
+memory-*.md
+
+# ============================================
+# 2. API 密钥与凭证
+# ============================================
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# ============================================
+# 3. 运行时产出与输出
+# ============================================
 output/
-
-# Node
-node_modules/
+productions/
+productions-*/
+videos/
+checkpoints/
+debug_llm/
+logs/
 *.log
+running-status.json
+episodes.json
+test-output/
 
-# OS
+# ============================================
+# 4. 备份与调试目录
+# ============================================
+backup/
+analysis/
+.trash/
+*.tmp
+*.temp
+*~
 .DS_Store
 Thumbs.db
 
-# Temp
-tmp/
-temp/
-*.tmp
+# ============================================
+# 5. 测试执行脚本（含硬编码内容）
+# ============================================
+test-*.js
+!tests/*.js
+run-*.js
+run-*.sh
+generate-*.js
+export-*.js
+export-*.sh
+pack-*.js
+pack-*.sh
+tmp-*.js
+
+# ============================================
+# 6. 诊断与报告文件
+# ============================================
+health-scan-report.md
+*-diagnosis-*.md
+*-diagnostic-*.md
+*-analysis-*.md
+*-report-*.md
+*-fix-*.md
+IMPLEMENTATION_REPORT.md
+
+# ============================================
+# 7. 旧版本发布说明（仅保留最新）
+# ============================================
+RELEASE-v1.*
+RELEASE-v2.*
+RELEASE-v3.*
+RELEASE-v4.*
+RELEASE-v5.*
+RELEASE-v6.*
+!RELEASE-v7.0.0.md
+
+# ============================================
+# 8. Node.js
+# ============================================
+node_modules/
+
+# ============================================
+# 9. 生成资源（由引擎生成）
+# ============================================
+characters/*/portraits/
+characters/*/portraits-v*/
+characters/*/reference-photos/
+

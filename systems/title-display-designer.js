@@ -300,7 +300,7 @@ function generateVisualDescription(integrationMethod, episodeTitle, episodeAutho
  * 主函数：设计集名展示
  * @param {string} scene - 场景描述
  * @param {string} episodeTitle - 集名（如"九尾狐·迷局"）
- * @param {string} episodeAuthor - 出品人（如"大鹏出品"）
+ * @param {string} episodeAuthor - 出品人（如"出品人A"）
  * @param {string[]} beastIds - 出场异兽ID列表
  * @returns {object} 集名展示设计方案
  */
@@ -351,7 +351,7 @@ if (require.main === module) {
   const result = designTitleDisplay(
     '青丘群岛·核心区域（山脉、森林、水域混合场景）',
     '九尾狐·迷局',
-    '大鹏出品',
+    '出品人A',
     ['jiu-wei-hu']
   );
   

@@ -182,7 +182,7 @@ async function main() {
   const report = {
     generatedAt: new Date().toISOString(),
     character: 'chen-nurse',
-    characterName: '陈卓（陈女士/香香妈妈）',
+    characterName: '角色A（女士/家长）',
     referencePhoto: REFERENCE_PATH,
     apiParameter: 'image',
     faceAnchor: FACE_ANCHOR,
