@@ -7,8 +7,8 @@ const { safeStructuredTrim } = require('../systems/safe-structured-trim');
 const rawShot = {
   shotId: 'S01',
   scene: '椰树下初见',
-  visualPrompt: '香香与小卓在椰树下初次相遇，海风吹拂，阳光温暖，画面具有纪录片真实质感',
-  action: '小卓低头看向香香，香香抬手回应，双方自然对视',
+  visualPrompt: 'Alex与Sarah在椰树下初次相遇，海风吹拂，阳光温暖，画面具有纪录片真实质感',
+  action: 'Sarah低头看向Alex，Alex抬手回应，双方自然对视',
   dialogue: '你看，风来了。',
   emotionPhase: '温暖、治愈',
   cameraString: '中景稳定运镜，轻微向下摇镜',
@@ -21,7 +21,7 @@ const rawShot = {
 };
 
 const oldPrompt = `
-16:9 cinematic, golden hour, clear sky, 香香，7个月男孩，小卓，35岁女性，椰树下初见，
+16:9 cinematic, golden hour, clear sky, 婴儿，7个月男孩，女性，35岁，椰树下初见，
 tilt_down, 中景居中构图，纪录片场景，伴随海风吹拂椰树叶沙沙声，海浪轻拍沙滩，
 Director style: 通用导演, hyperrealistic, no text, no watermark
 `.trim();
