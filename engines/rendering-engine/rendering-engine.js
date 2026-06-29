@@ -188,13 +188,13 @@ class RenderingEngine {
         
         paths.forEach(path => {
           const angleMatch = path.match(/-(\w+)\.png$/);
-          // 从路径提取实际目录名，如 image://characters/chen-zhuo/front.png → chen-zhuo
+          // 从路径提取实际目录名，如 image://characters/example-character/front.png → example-character
           const dirMatch = path.match(/characters\/([^\/]+)\//);
           const charDir = dirMatch ? dirMatch[1] : charName;
           
           refs.push({
             characterId: charName,      // 显示名（如"示例角色"）
-            characterDir: charDir,      // 实际目录名（如"chen-zhuo"）
+            characterDir: charDir,      // 实际目录名（如"example-character"）
             path: path,
             angle: angleMatch ? angleMatch[1] : 'unknown'
           });
@@ -236,17 +236,17 @@ class RenderingEngine {
           };
 
           // v1.2.7-fix-A2: 自动扫描 portraits 目录，补全4角度
-          // 使用 characterDir（实际目录名，如 chen-zhuo）而非 characterId（显示名，如示例角色）
+          // 使用 characterDir（实际目录名，如 example-character）而非 characterId（显示名，如示例角色）
           const charDirPath = path.join(this.config.charactersDir, ref.characterDir || charId);
           const portraitsDir = path.join(charDirPath, 'portraits');
           
           if (fs.existsSync(portraitsDir)) {
             const files = fs.readdirSync(portraitsDir);
             for (const angle of REQUIRED_ANGLES) {
-              // 查找匹配角度的文件（支持前缀，如 chen-zhuo-front.png）
+              // 查找匹配角度的文件（支持前缀，如 example-character-front.png）
               const matchedFile = files.find(f => f.includes(`-${angle}.png`) || f === `${angle}.png`);
               if (matchedFile) {
-                // 生成包含角色目录的完整相对路径，如 chen-zhuo/portraits/chen-zhuo-front.png
+                // 生成包含角色目录的完整相对路径，如 example-character/portraits/example-character-front.png
                 const relativePath = path.join(ref.characterDir || charId, 'portraits', matchedFile);
                 characters[charId].portraits[angle] = relativePath;
                 console.log(`[BindingManifest] 角色 ${charId} ${angle}: ${relativePath}`);

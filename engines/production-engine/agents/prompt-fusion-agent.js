@@ -117,7 +117,7 @@ const { TIMEOUTS } = require('../../../config/timeout-config');
 11. 【化妆】：妆容、发型细节。格式："短发整齐（黑色，长度及耳），素颜淡妆，眉毛自然，唇色淡粉，无夸张妆容"
 12. 【动作】：角色具体动作（手势、步伐、视线）。格式："右手自然抬起至胸前做强调手势，左手自然下垂，身体微微前倾，目光直视镜头"
 13. 【道具】：关键道具（手持物、桌面物品、背景物件）。格式："手持：空白A4文件夹（白色，无文字）；背景：木质讲台（表面有细微划痕），不锈钢保温杯"
-14. 【定妆照】：角色定妆照引用路径（如：image://characters/chen-zhuo/portraits/chen-zhuo-front.png）
+14. 【定妆照】：角色定妆照引用路径（如：image://characters/example-character/portraits/example-character-front.png）
 15. 【台词】：角色直接说的话，格式：纯台词内容（不要写"画外音""旁白"）
 16. 【时间轴】：镜头内部的微观导演调度时间轴。必须采用分段式描述，时间戳使用相对于镜头起始点的偏移格式 T00:XX（如 T00:00, T00:02, T00:04），每段包含画面内容和角色动作。要求至少分3段，时间戳不得重叠或跳跃中断。
    标准格式示例：
@@ -154,7 +154,7 @@ const { TIMEOUTS } = require('../../../config/timeout-config');
         "makeup": "短发整齐（黑色，长度及耳），素颜淡妆，眉毛自然，唇色淡粉",
         "action": "右手自然抬起至胸前做强调手势，左手自然下垂，身体微微前倾，目光直视镜头",
         "props": "手持：空白A4文件夹（白色，无文字）；背景：不锈钢检验窗口台面",
-        "portraits": "image://characters/chen-zhuo/portraits/chen-zhuo-front.png",
+        "portraits": "image://characters/example-character/portraits/example-character-front.png",
         "dialogue": "典型症状是肌肉疼痛、无力。",
         "timeline": "T00:00 - 中景，示例角色站立讲台前，阳光从侧面照入；缓缓抬起头，目光注视镜头\nT00:02 - 近景过渡，镜头缓慢推进至面部；眼神由冷静转为关切，嘴角微微抿紧\nT00:04 - 特写定格，示例角色眼部区域；眼睛眨动一次，瞳孔中反射出讲台景象",
         "mood": "calm, professional",
