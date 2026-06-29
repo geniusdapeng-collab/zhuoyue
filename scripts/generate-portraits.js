@@ -3,7 +3,7 @@ const path = require('path');
 
 const API_KEY = process.env.VOLCENGINE_ARK_API_KEY || '';
 const ENDPOINT = 'https://ark.cn-beijing.volces.com/api/v3/images/generations';
-const MODEL = 'ep-20260518004750-lz76f';
+const MODEL = '003cENDPOINT_IMG003e';
 
 const REFERENCE_PATH = '/root/.openclaw/workspace/characters/chen-nurse/reference-photos/reference-real.jpg';
 const OUTPUT_DIR = '/root/.openclaw/workspace/characters/chen-nurse/portraits-v4';

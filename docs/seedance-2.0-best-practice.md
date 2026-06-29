@@ -49,7 +49,7 @@
 
 ```json
 {
-  "model": "ep-20260518004622-jp46s",
+  "model": "003cENDPOINT_STD003e",
   "content": [
     {
       "type": "text",
