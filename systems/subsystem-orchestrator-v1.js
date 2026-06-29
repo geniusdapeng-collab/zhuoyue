@@ -57,7 +57,7 @@ class SubsystemOrchestrator {
       context.index || 0,
       context.totalShots || 1,
       {
-        protagonistName: context.protagonistName || '小G',
+        protagonistName: context.protagonistName || 'AgentX',
         beastName: context.beastName || '异兽',
         habitat: context.habitat || shot.scene || '',
         ability: context.ability || ''

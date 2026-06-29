@@ -37,8 +37,8 @@ if (require.main === module) {
       type: 'opening',
       scene: '青丘灵原',
       emotionPhase: '神秘、敬畏',
-      narration: '小G第一次走入荧光草浪起伏的平原，远处异兽的轮廓在雾中浮现。',
-      characters: ['小G'],
+      narration: 'AgentX第一次走入荧光草浪起伏的平原，远处异兽的轮廓在雾中浮现。',
+      characters: ['AgentX'],
       visualPrompt: '荧光草地、远山、双恒星光照'
     };
 
@@ -49,7 +49,7 @@ if (require.main === module) {
       habitat: '青丘灵原',
       episodeTheme: '初遇与信任',
       storyGoal: '建立世界观与情绪钩子',
-      protagonistName: '小G',
+      protagonistName: 'AgentX',
       sceneType: 'nature_epic'
     };
 

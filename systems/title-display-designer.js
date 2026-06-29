@@ -87,7 +87,7 @@ const INTEGRATION_LIBRARY = {
     category: '角色场景',
     applicableScenes: ['角色特写', '探险', '发现', '人物'],
     applicableBeasts: [],
-    descriptionTemplate: `【全息投影板】小G从背包中取出一块Nirath原生晶体板，轻触激活。晶体板表面浮现淡{glowColor}色磁场光芒，形成能量纹路图案，纹路如能量流动般脉动，暗示信息存在但不形成具体文字。副标题区域以较小能量纹路出现于晶体板底部边缘。晶体板材质带有星云纹理，激活时散发古老磁场气息与微弱能量波动。`,
+    descriptionTemplate: `【全息投影板】AgentX从背包中取出一块Nirath原生晶体板，轻触激活。晶体板表面浮现淡{glowColor}色磁场光芒，形成能量纹路图案，纹路如能量流动般脉动，暗示信息存在但不形成具体文字。副标题区域以较小能量纹路出现于晶体板底部边缘。晶体板材质带有星云纹理，激活时散发古老磁场气息与微弱能量波动。`,
     visualElements: ['晶体板', '能量纹路', '脉动光芒', '星云纹理'],
     epicLevel: 7,
     uniqueness: 7
@@ -109,7 +109,7 @@ const INTEGRATION_LIBRARY = {
     category: '异兽场景',
     applicableScenes: ['凝视', '对视', '瞳孔', '眼睛'],
     applicableBeasts: ['jiu-wei-hu', 'zhu-long'],
-    descriptionTemplate: `【瞳孔投影】{beastName}的巨大瞳孔中倒映出场景全貌，瞳孔表面如镜面般光滑。在瞳孔中央，有微型全息投影形成的抽象纹路图案，由瞳孔内部的生物发光细胞生成。副标题区域以更小光环浮现在瞳孔边缘的虹膜纹理中。小G的倒影出现在瞳孔中，与纹路重叠，产生"信息刻于眼中"的视觉效果。`,
+    descriptionTemplate: `【瞳孔投影】{beastName}的巨大瞳孔中倒映出场景全貌，瞳孔表面如镜面般光滑。在瞳孔中央，有微型全息投影形成的抽象纹路图案，由瞳孔内部的生物发光细胞生成。副标题区域以更小光环浮现在瞳孔边缘的虹膜纹理中。AgentX的倒影出现在瞳孔中，与纹路重叠，产生"信息刻于眼中"的视觉效果。`,
     visualElements: ['瞳孔镜面', '全息投影', '生物发光', '倒影重叠'],
     epicLevel: 10,
     uniqueness: 10

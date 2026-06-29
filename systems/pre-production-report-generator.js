@@ -497,7 +497,7 @@ if (require.main === module) {
           duration: 5,
           prompt: 'Epic fantasy opening shot... (mock prompt for testing, this is a very long prompt that should be counted for length analysis purposes)',
           promptLength: 480,
-          characterRef: '小G-正面-v2',
+          characterRef: 'AgentX-正面-v2',
           cameraMovement: '缓慢推进',
           narration: '这是一个测试旁白',
           compliance: '通过'

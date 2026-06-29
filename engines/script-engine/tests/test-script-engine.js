@@ -16,7 +16,7 @@ console.log('========================================\n');
 const testIntents = [
   {
     name: 'Nirath 饕餮 EP01',
-    raw: '创作山海经异兽志第一集，主角饕餮，120秒，Nirath星球，小G探索',
+    raw: '创作山海经异兽志第一集，主角饕餮，120秒，Nirath星球，AgentX探索',
     metadata: {
       title: '山海经：异兽志 EP01 饕餮',
       target_duration: 120,
@@ -169,7 +169,7 @@ const blueprint = new ScriptBlueprint({
     characters: [
       {
         character_id: 'xiaoG',
-        name: '小G',
+        name: 'AgentX',
         role: 'protagonist',
         visual_anchor: {
           core_features: ['银灰装甲', '东亚面孔短发', '年轻男性'],

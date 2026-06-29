@@ -44,7 +44,7 @@ class RenderSubmitter {
     const prompt = resolvePromptText(shot);
     const knownRoles = [
       'xiaoG',
-      '小G',
+      'AgentX',
       'tao-tie',
       'taotie',
       '饕餮',
@@ -69,7 +69,7 @@ class RenderSubmitter {
 
   normalizeRoleId(role) {
     const map = {
-      '小G': 'xiaoG',
+      'AgentX': 'xiaoG',
       '饕餮': 'tao-tie',
       'taotie': 'tao-tie',
       '九尾狐': 'jiu-wei-hu',

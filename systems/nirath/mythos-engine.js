@@ -132,11 +132,11 @@ const BEAST_PROFILES = {
 };
 
 // ─────────────────────────────────────────
-// 10.3 小G 观测者系统
+// 10.3 AgentX 观测者系统
 // ─────────────────────────────────────────
 
 const XIAO_G_PROFILE = {
-  name: '小G',
+  name: 'AgentX',
   age: 8,
   height: '1.2米',
   appearance: '黑色短发，琥珀色眼睛（与九尾狐同色——暗示某种联系）',
@@ -357,21 +357,21 @@ function generateBeastSection(beastKey) {
 }
 
 /**
- * 生成小G角色段落Prompt
+ * 生成AgentX角色段落Prompt
  * @param {string} positionKey - 观测位置键名
  * @param {Object} options - 选项
- * @returns {string} 小G角色Prompt段落
+ * @returns {string} AgentX角色Prompt段落
  */
 function generateXiaoGSection(positionKey, options = {}) {
   const position = OBSERVATION_POSITIONS[positionKey];
   if (!position) return '';
 
-  let prompt = `【角色 — 小G】${XIAO_G_PROFILE.age}岁男孩，身高${XIAO_G_PROFILE.height}，${XIAO_G_PROFILE.appearance}，${XIAO_G_PROFILE.clothing}。`;
+  let prompt = `【角色 — AgentX】${XIAO_G_PROFILE.age}岁男孩，身高${XIAO_G_PROFILE.height}，${XIAO_G_PROFILE.appearance}，${XIAO_G_PROFILE.clothing}。`;
   prompt += `${position.prompt}\n`;
 
   // 情感曲线
   if (options.includeEmotionalCurve) {
-    prompt += '\n【小G情感曲线】\n';
+    prompt += '\n【AgentX情感曲线】\n';
     Object.entries(EMOTIONAL_CURVE).forEach(([time, data]) => {
       prompt += `${time} ${data.stage}：${data.expression}，${data.bodyLanguage}\n`;
     });
@@ -381,7 +381,7 @@ function generateXiaoGSection(positionKey, options = {}) {
 }
 
 /**
- * 生成完整MYTHOS段落（异兽+小G+三位一体）
+ * 生成完整MYTHOS段落（异兽+AgentX+三位一体）
  * @param {Object} config - 配置
  * @param {string} config.beast - 异兽键名
  * @param {string} config.xiaoGPosition - 观测位置
@@ -395,7 +395,7 @@ function generateMythosSection(config) {
   // 异兽档案
   prompt += generateBeastSection(config.beast) + '\n\n';
 
-  // 小G角色
+  // AgentX角色
   prompt += generateXiaoGSection(config.xiaoGPosition, {
     includeEmotionalCurve: config.includeEmotionalCurve
   }) + '\n';

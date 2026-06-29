@@ -232,7 +232,7 @@ class PipelineEventSubscribers {
         storyboard: storyboard, // 已变异
         report: result,
         protagonistId: input?.protagonistId || 'xiaoG',
-        protagonistName: input?.protagonistName || '小G'
+        protagonistName: input?.protagonistName || 'AgentX'
       }, { stageId: 'STAGE-7.2', triggeredBy: metadata });
       
       console.log(`[EventSub:7.2] 主动性注入完成 | 注入${result.totalInjections}个动作`);

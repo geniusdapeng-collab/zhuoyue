@@ -77,7 +77,7 @@ const WORLDVIEW_CONFIG = {
   
   // 叙事口吻锚定
   narrativeTone: {
-    // 主角口吻（8岁男孩小G）
+    // 主角口吻（8岁男孩AgentX）
     protagonist: {
       style: '温柔、好奇、坚定',
       vocabulary: ['我想', '我觉得', '也许', '可能', '为什么', '如果'],
@@ -579,7 +579,7 @@ if (require.main === module) {
         actNumber: 1,
         name: '相遇',
         description: '银色湖泊旁',
-        narration: '小G看到了暖暖',
+        narration: 'AgentX看到了暖暖',
         prompt: '超写实CG渲染'
       }
     ]

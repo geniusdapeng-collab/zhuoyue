@@ -4,7 +4,7 @@
  * 
  * 功能：为山海经视频注入冒险感运镜方案
  * 核心能力：
- * - 主动镜头：小G主观视角、跟拍、肩后视角
+ * - 主动镜头：AgentX主观视角、跟拍、肩后视角
  * - 探索运镜：推近未知、环绕发现、穿越障碍
  * - 互动镜头：对话环绕、反应特写、双角色构图
  * - 魔幻揭示：能力绽放、形体变化、共鸣时刻
@@ -17,7 +17,7 @@ class AdventureCinematographySystem {
     this.config = {
       // 冒险感强度（0-1）
       intensity: config.intensity ?? 0.7,
-      // 默认小G角色ID
+      // 默认AgentX角色ID
       protagonistId: config.protagonistId || 'xiaoG',
       // 异兽角色ID
       beastId: config.beastId || null,
@@ -75,10 +75,10 @@ class AdventureCinematographySystem {
 
   /**
    * 开场镜头：主动建立
-   * 小G主动走向未知，观众跟随
+   * AgentX主动走向未知，观众跟随
    */
   generateOpeningCamera(shot, options) {
-    const protagonist = options.protagonistName || '小G';
+    const protagonist = options.protagonistName || 'AgentX';
     const habitat = options.habitat || '紫晶山脉';
     
     return {
@@ -105,7 +105,7 @@ class AdventureCinematographySystem {
    * 逐步揭示异兽栖息地的神秘
    */
   generateExplorationCamera(shot, index, totalShots, options) {
-    const protagonist = options.protagonistName || '小G';
+    const protagonist = options.protagonistName || 'AgentX';
     const progress = index / totalShots; // 0-1 故事进度
     
     // 根据进度调整运镜复杂度
@@ -165,10 +165,10 @@ class AdventureCinematographySystem {
 
   /**
    * 互动镜头：双角色构图
-   * 小G与异兽的情感交流
+   * AgentX与异兽的情感交流
    */
   generateInteractionCamera(shot, options) {
-    const protagonist = options.protagonistName || '小G';
+    const protagonist = options.protagonistName || 'AgentX';
     const beast = options.beastName || '异兽';
     
     return {
@@ -219,7 +219,7 @@ class AdventureCinematographySystem {
    * 高潮镜头：情感/能力峰值
    */
   generateClimaxCamera(shot, options) {
-    const protagonist = options.protagonistName || '小G';
+    const protagonist = options.protagonistName || 'AgentX';
     const beast = options.beastName || '异兽';
     
     return {
@@ -291,7 +291,7 @@ class AdventureCinematographySystem {
   processStoryboard(storyboard, options = {}) {
     const shots = storyboard.shots || [];
     const enhanced = this.enhanceShots(shots, {
-      protagonistName: options.protagonistName || '小G',
+      protagonistName: options.protagonistName || 'AgentX',
       beastName: options.beastName || storyboard.beast?.name,
       habitat: options.habitat || storyboard.habitat,
       ability: options.ability || storyboard.beast?.abilities?.[0],
@@ -319,13 +319,13 @@ class AdventureCinematographySystem {
       issues.push('故事板缺少冒险感运镜，所有镜头均为被动/静态视角');
     }
     
-    // 检查小G主动性
+    // 检查AgentX主动性
     const protagonistActive = shots.some(s => {
       const text = (s.prompt || '') + (s.action || '') + (s.camera || '');
       return ['主动', '走向', '探索', '伸出手', '迈出'].some(kw => text.includes(kw));
     });
     if (!protagonistActive) {
-      issues.push('小G全程被动，建议增加主动行动镜头');
+      issues.push('AgentX全程被动，建议增加主动行动镜头');
     }
     
     // 检查是否有探索递进

@@ -807,7 +807,7 @@ class CharacterManagerV2 {
 
   /**
    * 获取角色跨集成长档案
-   * @param {string} characterId - 角色ID（默认小G）
+   * @param {string} characterId - 角色ID（默认AgentX）
    */
   getCharacterGrowthProfile(characterId) {
     return this.growthTrace.getCharacterGrowthProfile(characterId || this.config.protagonistId || 'xiaoG');
