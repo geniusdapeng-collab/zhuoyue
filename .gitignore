@@ -89,6 +89,9 @@ RELEASE-v4.*
 RELEASE-v5.*
 RELEASE-v6.*
 !RELEASE-v7.0.0.md
+release-v*.md
+release-*.md
+systems/release-manifest.js
 
 # ============================================
 # 8. Node.js
